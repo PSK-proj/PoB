@@ -1,0 +1,29 @@
+services:
+  lb:
+    build:
+      context: .
+      dockerfile: lb/Dockerfile
+    container_name: lb
+    ports:
+      - "8080:8000"
+    depends_on:
+      - worker
+
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: worker-1
+    environment:
+      - WORKER_ID=worker-1
+
+  clientgen:
+    build:
+      context: .
+      dockerfile: clientgen/Dockerfile
+    container_name: clientgen
+    environment:
+      - LB_URL=http://lb:8000
+    depends_on:
+      - lb
+    profiles: ["dev"]
