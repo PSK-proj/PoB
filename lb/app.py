@@ -16,6 +16,7 @@ from lb.control.weights import router as weights_router
 from lb.core.registry import WorkerState
 from lb.core.smooth_wrr import SmoothWRR
 from lb.clients.worker_api import fetch_health, forward_handle
+from lb.stream.state_stream import router as stream_router
 
 
 WORKER_URLS = os.getenv("WORKER_URLS", "").strip()
@@ -25,6 +26,7 @@ HEALTH_INTERVAL_SEC = float(os.getenv("LB_HEALTH_INTERVAL_SEC", "2.0"))
 DISABLE_ON_FAIL_SEC = float(os.getenv("LB_DISABLE_ON_FAIL_SEC", "3.0"))
 RETRY_ATTEMPTS = int(os.getenv("LB_RETRY_ATTEMPTS", "2"))
 LAT_EWMA_ALPHA = float(os.getenv("LB_LAT_EWMA_ALPHA", "0.2"))
+LB_STREAM_INTERVAL_SEC = float(os.getenv("LB_STREAM_INTERVAL_SEC", "0.5"))
 
 LB_WEIGHT_MODE = os.getenv("LB_WEIGHT_MODE", "manual").strip().lower()
 AUTO_WEIGHT_INTERVAL_SEC = float(os.getenv("AUTO_WEIGHT_INTERVAL_SEC", "2.0"))
@@ -248,6 +250,7 @@ async def lifespan(app: FastAPI):
     rt.auto_task = asyncio.create_task(_auto_loop(rt))
 
     app.state.rt = rt
+    app.state.stream_interval_sec = max(0.05, LB_STREAM_INTERVAL_SEC)
     try:
         yield
     finally:
@@ -262,6 +265,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Load Balancer", version="0.3.0", lifespan=lifespan)
 app.include_router(traffic_router)
 app.include_router(weights_router)
+app.include_router(stream_router)
 
 
 @app.get("/health")

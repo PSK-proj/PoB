@@ -43,6 +43,7 @@ services:
       LB_DISABLE_ON_FAIL_SEC: ${LB_DISABLE_ON_FAIL_SEC}
       LB_RETRY_ATTEMPTS: ${LB_RETRY_ATTEMPTS}
       LB_LAT_EWMA_ALPHA: ${LB_LAT_EWMA_ALPHA}
+      LB_STREAM_INTERVAL_SEC: ${LB_STREAM_INTERVAL_SEC}
     depends_on:
       clientgen:
         condition: service_healthy
