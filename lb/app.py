@@ -12,17 +12,23 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from lb.control.traffic import router as traffic_router
+from lb.control.weights import router as weights_router
 from lb.core.registry import WorkerState
 from lb.core.smooth_wrr import SmoothWRR
 from lb.clients.worker_api import fetch_health, forward_handle
 
 
 WORKER_URLS = os.getenv("WORKER_URLS", "").strip()
+
 REQUEST_TIMEOUT_SEC = float(os.getenv("LB_REQUEST_TIMEOUT_SEC", "2.0"))
 HEALTH_INTERVAL_SEC = float(os.getenv("LB_HEALTH_INTERVAL_SEC", "2.0"))
 DISABLE_ON_FAIL_SEC = float(os.getenv("LB_DISABLE_ON_FAIL_SEC", "3.0"))
 RETRY_ATTEMPTS = int(os.getenv("LB_RETRY_ATTEMPTS", "2"))
 LAT_EWMA_ALPHA = float(os.getenv("LB_LAT_EWMA_ALPHA", "0.2"))
+
+LB_WEIGHT_MODE = os.getenv("LB_WEIGHT_MODE", "manual").strip().lower()
+AUTO_WEIGHT_INTERVAL_SEC = float(os.getenv("AUTO_WEIGHT_INTERVAL_SEC", "2.0"))
+AUTO_WEIGHT_MAX = int(os.getenv("AUTO_WEIGHT_MAX", "10"))
 
 
 class LBRequest(BaseModel):
@@ -32,8 +38,13 @@ class LBRequest(BaseModel):
 class WorkerView(BaseModel):
     id: str
     url: str
-    weight: int
     online: bool
+
+    reported_weight: int
+    manual_weight: int | None
+    auto_weight: int | None
+    effective_weight: int
+
     assigned: int
     assigned_pct: float
     ok: int
@@ -50,12 +61,23 @@ class LBResponse(BaseModel):
     lb_forward_ms: float
     worker_body: Any
 
+
+class LBState(BaseModel):
+    weight_mode: str
+    total_assigned: int
+    total_ok: int
+    total_fail: int
+    workers: list[WorkerView]
+
+
 @dataclass
 class Runtime:
     workers: list[WorkerState]
     balancer: SmoothWRR
     http: httpx.AsyncClient
+    weight_mode: str = "manual"
     health_task: Optional[asyncio.Task] = None
+    auto_task: Optional[asyncio.Task] = None
 
 
 def _parse_worker_urls(raw: str) -> list[str]:
@@ -94,26 +116,34 @@ async def _refresh_health_once(rt: Runtime) -> None:
             return w, None, e
 
     results = await asyncio.gather(*[_probe(w) for w in rt.workers], return_exceptions=False)
-
     now = time.time()
-    for w, data, err in results:
-        if err is not None:
-            w.online = False
-            w.last_error = f"health: {err}"
-            continue
 
-        w.online = True
-        w.last_seen = now
-        w.last_error = None
+    async with rt.balancer.lock:
+        for w, data, err in results:
+            if err is not None:
+                w.online = False
+                w.last_error = f"health: {err}"
+                continue
 
-        if isinstance(data, dict):
-            if "worker_id" in data:
-                w.id = str(data["worker_id"])
-            if "weight" in data:
-                try:
-                    w.weight = int(data["weight"])
-                except Exception:
-                    pass
+            w.online = True
+            w.last_seen = now
+            w.last_error = None
+
+            if isinstance(data, dict):
+                if "worker_id" in data:
+                    w.id = str(data["worker_id"])
+                if "weight" in data:
+                    try:
+                        w.reported_weight = max(1, int(data["weight"]))
+                    except Exception:
+                        pass
+                if "base_lat_ms" in data:
+                    try:
+                        w.reported_base_lat_ms = int(data["base_lat_ms"])
+                    except Exception:
+                        pass
+
+            w.recompute_effective(rt.weight_mode)
 
 
 async def _health_loop(rt: Runtime) -> None:
@@ -125,104 +155,57 @@ async def _health_loop(rt: Runtime) -> None:
             pass
 
 
-async def _forward_with_metrics(rt: Runtime, w: WorkerState, payload: dict) -> tuple[int, Any, float]:
-    status, body, ms = await forward_handle(
-        rt.http,
-        w,
-        payload=payload,
-        timeout_sec=REQUEST_TIMEOUT_SEC,
-    )
-    if 200 <= status < 300:
-        _record_success(w, ms)
-    else:
-        _record_failure(w, f"http {status}")
-        if status >= 500:
-            _disable_temporarily(w, DISABLE_ON_FAIL_SEC)
-    return status, body, ms
+def _compute_auto_weights(rt: Runtime) -> None:
+    scores: list[tuple[WorkerState, float]] = []
+    for w in rt.workers:
+        if not w.online:
+            continue
+
+        total = max(1, w.ok + w.fail)
+        fail_rate = w.fail / total
+
+        lat = w.avg_latency_ms
+        if lat <= 0 and w.reported_base_lat_ms is not None:
+            lat = float(w.reported_base_lat_ms)
+        if lat <= 0:
+            lat = 50.0
+
+        score = (1.0 / (lat + 1.0)) * (1.0 - fail_rate)
+        scores.append((w, max(0.0, score)))
+
+    if not scores:
+        return
+
+    max_score = max(s for _, s in scores) or 1.0
+
+    for w, s in scores:
+        w.auto_weight = max(1, int(round(AUTO_WEIGHT_MAX * (s / max_score))))
 
 
-async def _attempt_once(rt: Runtime, payload: dict) -> tuple[Optional[LBResponse], Optional[str], bool]:
-    """
-    Returns: (response_or_none, last_error_or_none, should_retry)
-    """
-    w = await rt.balancer.choose()
-    if w is None:
-        return None, "No eligible workers", False
+async def _auto_loop(rt: Runtime) -> None:
+    while True:
+        await asyncio.sleep(AUTO_WEIGHT_INTERVAL_SEC)
 
-    try:
-        status, body, ms = await _forward_with_metrics(rt, w, payload)
-        resp = LBResponse(
-            chosen_worker=w.id,
-            attempt=0,
-            worker_status=status,
-            lb_forward_ms=round(ms, 3),
-            worker_body=body,
-        )
+        if rt.weight_mode != "auto":
+            continue
 
-        should_retry = status >= 500
-        return resp, w.last_error, should_retry
-
-    except Exception as e:
-        _record_failure(w, f"forward: {e}")
-        _disable_temporarily(w, DISABLE_ON_FAIL_SEC)
-        return None, w.last_error, True
+        async with rt.balancer.lock:
+            _compute_auto_weights(rt)
+            for w in rt.workers:
+                w.recompute_effective(rt.weight_mode)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    urls = _parse_worker_urls(WORKER_URLS)
-    if not urls:
-        raise RuntimeError("WORKER_URLS is empty")
-
-    http = httpx.AsyncClient(timeout=5.0)
-
-    workers: list[WorkerState] = []
-    for u in urls:
-        host = u.replace("http://", "").replace("https://", "").split(":")[0]
-        workers.append(WorkerState(id=host, url=u, weight=1))
-
-    rt = Runtime(
-        workers=workers,
-        balancer=SmoothWRR(workers),
-        http=http,
-        health_task=None,
-    )
-
-    await _refresh_health_once(rt)
-    rt.health_task = asyncio.create_task(_health_loop(rt))
-
-    app.state.rt = rt
-    try:
-        yield
-    finally:
-        if rt.health_task is not None:
-            rt.health_task.cancel()
-            with suppress(asyncio.CancelledError):
-                await rt.health_task
-        await rt.http.aclose()
-
-
-app = FastAPI(title="Load Balancer", version="0.2.0", lifespan=lifespan)
-app.include_router(traffic_router)
-
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "service": "lb"}
-
-
-@app.get("/workers", response_model=list[WorkerView])
-def list_workers():
-    rt: Runtime = app.state.rt
+def _build_worker_views(rt: Runtime) -> list[WorkerView]:
     total = sum(w.assigned for w in rt.workers)
-
     return [
         WorkerView(
             id=w.id,
             url=w.url,
-            weight=w.weight,
             online=w.online,
+            reported_weight=w.reported_weight,
+            manual_weight=w.manual_weight,
+            auto_weight=w.auto_weight,
+            effective_weight=w.effective_weight,
             assigned=w.assigned,
             assigned_pct=round(_assigned_pct(w.assigned, total), 3),
             ok=w.ok,
@@ -235,23 +218,122 @@ def list_workers():
     ]
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    urls = _parse_worker_urls(WORKER_URLS)
+    if not urls:
+        raise RuntimeError("WORKER_URLS is empty")
+
+    if LB_WEIGHT_MODE not in {"manual", "auto"}:
+        raise RuntimeError("LB_WEIGHT_MODE must be 'manual' or 'auto'")
+
+    http = httpx.AsyncClient(timeout=5.0)
+
+    workers: list[WorkerState] = []
+    for u in urls:
+        host = u.replace("http://", "").replace("https://", "").split(":")[0]
+        ws = WorkerState(id=host, url=u)
+        ws.recompute_effective(LB_WEIGHT_MODE)
+        workers.append(ws)
+
+    rt = Runtime(
+        workers=workers,
+        balancer=SmoothWRR(workers),
+        http=http,
+        weight_mode=LB_WEIGHT_MODE,
+    )
+
+    await _refresh_health_once(rt)
+    rt.health_task = asyncio.create_task(_health_loop(rt))
+    rt.auto_task = asyncio.create_task(_auto_loop(rt))
+
+    app.state.rt = rt
+    try:
+        yield
+    finally:
+        for task in (rt.health_task, rt.auto_task):
+            if task is not None:
+                task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await task
+        await rt.http.aclose()
+
+
+app = FastAPI(title="Load Balancer", version="0.3.0", lifespan=lifespan)
+app.include_router(traffic_router)
+app.include_router(weights_router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "lb"}
+
+
+@app.get("/workers", response_model=list[WorkerView])
+def list_workers():
+    rt: Runtime = app.state.rt
+    return _build_worker_views(rt)
+
+
+@app.get("/state", response_model=LBState)
+def state():
+    rt: Runtime = app.state.rt
+    total_assigned = sum(w.assigned for w in rt.workers)
+    total_ok = sum(w.ok for w in rt.workers)
+    total_fail = sum(w.fail for w in rt.workers)
+    return LBState(
+        weight_mode=rt.weight_mode,
+        total_assigned=total_assigned,
+        total_ok=total_ok,
+        total_fail=total_fail,
+        workers=_build_worker_views(rt),
+    )
+
+
 @app.post("/request", response_model=LBResponse)
 async def handle_request(req: LBRequest):
     rt: Runtime = app.state.rt
-
     last_err: Optional[str] = None
 
     for attempt in range(1, max(1, RETRY_ATTEMPTS) + 1):
-        resp, err, should_retry = await _attempt_once(rt, req.payload)
-        if resp is not None:
-            resp.attempt = attempt
-            if should_retry and attempt < RETRY_ATTEMPTS:
-                last_err = err
-                continue
-            return resp
+        w = await rt.balancer.choose()
+        if w is None:
+            raise HTTPException(status_code=503, detail="No eligible workers")
 
-        last_err = err
-        if not should_retry:
-            break
+        try:
+            status, body, ms = await forward_handle(
+                rt.http, w, payload=req.payload, timeout_sec=REQUEST_TIMEOUT_SEC
+            )
+
+            if 200 <= status < 300:
+                _record_success(w, ms)
+                return LBResponse(
+                    chosen_worker=w.id,
+                    attempt=attempt,
+                    worker_status=status,
+                    lb_forward_ms=round(ms, 3),
+                    worker_body=body,
+                )
+
+            _record_failure(w, f"http {status}")
+            last_err = w.last_error
+
+            if status >= 500:
+                _disable_temporarily(w, DISABLE_ON_FAIL_SEC)
+                continue
+
+            return LBResponse(
+                chosen_worker=w.id,
+                attempt=attempt,
+                worker_status=status,
+                lb_forward_ms=round(ms, 3),
+                worker_body=body,
+            )
+
+        except Exception as e:
+            _record_failure(w, f"forward: {e}")
+            last_err = w.last_error
+            _disable_temporarily(w, DISABLE_ON_FAIL_SEC)
+            continue
 
     raise HTTPException(status_code=502, detail=f"All attempts failed: {last_err}")
