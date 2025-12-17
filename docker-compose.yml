@@ -1,29 +1,154 @@
+networks:
+  appnet:
+
+x-worker-base: &worker-base
+  build:
+    context: .
+    dockerfile: worker/Dockerfile
+  restart: unless-stopped
+  networks: [appnet]
+  environment:
+    - TZ=${TZ}
+  healthcheck:
+    test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()\""]
+    interval: 5s
+    timeout: 3s
+    retries: 10
+
 services:
   lb:
     build:
       context: .
       dockerfile: lb/Dockerfile
     container_name: lb
+    restart: unless-stopped
+    networks: [appnet]
     ports:
-      - "8080:8000"
-    depends_on:
-      - worker
-
-  worker:
-    build:
-      context: .
-      dockerfile: worker/Dockerfile
-    container_name: worker-1
+      - "${LB_HOST_PORT}:8000"
     environment:
-      - WORKER_ID=worker-1
+      - TZ=${TZ}
+      - CLIENTGEN_URL=${CLIENTGEN_URL}
+      - WORKER_URLS=${WORKER_URLS}
+    depends_on:
+      clientgen: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   clientgen:
     build:
       context: .
       dockerfile: clientgen/Dockerfile
     container_name: clientgen
+    restart: unless-stopped
+    networks: [appnet]
     environment:
-      - LB_URL=http://lb:8000
-    depends_on:
-      - lb
-    profiles: ["dev"]
+      - TZ=${TZ}
+      - LB_URL=${LB_URL}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  worker1:
+    <<: *worker-base
+    container_name: worker-1
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-1
+      - BASE_LAT_MS=${WORKER1_BASE_LAT_MS}
+      - CAPACITY=${WORKER1_CAPACITY}
+      - WEIGHT=${WORKER1_WEIGHT}
+
+  worker2:
+    <<: *worker-base
+    container_name: worker-2
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-2
+      - BASE_LAT_MS=${WORKER2_BASE_LAT_MS}
+      - CAPACITY=${WORKER2_CAPACITY}
+      - WEIGHT=${WORKER2_WEIGHT}
+
+  worker3:
+    <<: *worker-base
+    container_name: worker-3
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-3
+      - BASE_LAT_MS=${WORKER3_BASE_LAT_MS}
+      - CAPACITY=${WORKER3_CAPACITY}
+      - WEIGHT=${WORKER3_WEIGHT}
+
+  worker4:
+    <<: *worker-base
+    container_name: worker-4
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-4
+      - BASE_LAT_MS=${WORKER4_BASE_LAT_MS}
+      - CAPACITY=${WORKER4_CAPACITY}
+      - WEIGHT=${WORKER4_WEIGHT}
+
+  worker5:
+    <<: *worker-base
+    container_name: worker-5
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-5
+      - BASE_LAT_MS=${WORKER5_BASE_LAT_MS}
+      - CAPACITY=${WORKER5_CAPACITY}
+      - WEIGHT=${WORKER5_WEIGHT}
+
+  worker6:
+    <<: *worker-base
+    container_name: worker-6
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-6
+      - BASE_LAT_MS=${WORKER6_BASE_LAT_MS}
+      - CAPACITY=${WORKER6_CAPACITY}
+      - WEIGHT=${WORKER6_WEIGHT}
+
+  worker7:
+    <<: *worker-base
+    container_name: worker-7
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-7
+      - BASE_LAT_MS=${WORKER7_BASE_LAT_MS}
+      - CAPACITY=${WORKER7_CAPACITY}
+      - WEIGHT=${WORKER7_WEIGHT}
+
+  worker8:
+    <<: *worker-base
+    container_name: worker-8
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-8
+      - BASE_LAT_MS=${WORKER8_BASE_LAT_MS}
+      - CAPACITY=${WORKER8_CAPACITY}
+      - WEIGHT=${WORKER8_WEIGHT}
+
+  worker9:
+    <<: *worker-base
+    container_name: worker-9
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-9
+      - BASE_LAT_MS=${WORKER9_BASE_LAT_MS}
+      - CAPACITY=${WORKER9_CAPACITY}
+      - WEIGHT=${WORKER9_WEIGHT}
+
+  worker10:
+    <<: *worker-base
+    container_name: worker-10
+    environment:
+      - TZ=${TZ}
+      - WORKER_ID=worker-10
+      - BASE_LAT_MS=${WORKER10_BASE_LAT_MS}
+      - CAPACITY=${WORKER10_CAPACITY}
+      - WEIGHT=${WORKER10_WEIGHT}

@@ -3,7 +3,10 @@ from pydantic import BaseModel
 from typing import List
 import itertools
 
+from lb.control.traffic import router as traffic_router
+
 app = FastAPI(title="Load Balancer", version="0.1.0")
+app.include_router(traffic_router)
 
 
 class WorkerConfig(BaseModel):
@@ -37,7 +40,6 @@ def list_workers():
 
 @app.post("/request", response_model=RequestResult)
 def handle_request():
-    """Prosty round-robin – wybiera workera, ale jeszcze nie robi realnego proxy."""
     idx = next(_rr_cycle)
     worker = workers[idx]
     return RequestResult(chosen_worker=worker.id)
