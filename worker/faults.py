@@ -4,7 +4,7 @@ import time
 import uuid
 import random
 from dataclasses import dataclass
-from typing import Annotated, Literal, Optional, Union
+from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, Field
 
@@ -32,8 +32,29 @@ class CorruptFaultCreate(BaseModel):
     duration_sec: float | None = Field(default=None, ge=0.1, le=86_400)
 
 
+class CpuBurnFaultCreate(BaseModel):
+    kind: Literal["cpu_burn"]
+    burn_ms: int = Field(default=50, ge=1, le=60_000)
+    probability: float = Field(default=1.0, ge=0.0, le=1.0)
+    duration_sec: float | None = Field(default=None, ge=0.1, le=86_400)
+
+
+class ErrorFaultCreate(BaseModel):
+    kind: Literal["error"]
+    status_code: int = Field(default=500, ge=400, le=599)
+    message: str = Field(default="fault: error")
+    probability: float = Field(default=1.0, ge=0.0, le=1.0)
+    duration_sec: float | None = Field(default=None, ge=0.1, le=86_400)
+
+
 FaultCreate = Annotated[
-    Union[DelayFaultCreate, DropFaultCreate, CorruptFaultCreate],
+    Union[
+        DelayFaultCreate,
+        DropFaultCreate,
+        CorruptFaultCreate,
+        CpuBurnFaultCreate,
+        ErrorFaultCreate,
+    ],
     Field(discriminator="kind"),
 ]
 
@@ -66,7 +87,10 @@ class FaultRegistry:
 
     def list_views(self) -> list[FaultView]:
         self.purge_expired()
-        return [FaultView(id=f.id, kind=f.kind, created_at=f.created_at, expires_at=f.expires_at, spec=f.spec) for f in self._faults]
+        return [
+            FaultView(id=f.id, kind=f.kind, created_at=f.created_at, expires_at=f.expires_at, spec=f.spec)
+            for f in self._faults
+        ]
 
     def add(self, fc: FaultCreate) -> FaultView:
         now = time.time()

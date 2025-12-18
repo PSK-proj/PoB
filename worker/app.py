@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from worker.faults import FaultCreate, FaultRegistry, FaultView, should_trigger
 
 
-app = FastAPI(title="Worker", version="0.4.0")
+app = FastAPI(title="Worker", version="0.5.0")
 
 WORKER_ID = os.getenv("WORKER_ID", "worker-unknown")
 
@@ -111,6 +111,24 @@ def _sum_delay_ms(active_faults) -> int:
     return max(0, total)
 
 
+def _sum_cpu_burn_ms(active_faults) -> int:
+    total = 0
+    for f in active_faults:
+        if f.kind != "cpu_burn":
+            continue
+        prob = float(f.spec.get("probability", 1.0))
+        if should_trigger(prob):
+            total += int(f.spec.get("burn_ms", 0))
+    return max(0, total)
+
+
+def _busy_cpu(burn_ms: int) -> None:
+    end = time.perf_counter() + (burn_ms / 1000.0)
+    x = 0
+    while time.perf_counter() < end:
+        x ^= 1
+
+
 def _pick_drop(active_faults):
     for f in active_faults:
         if f.kind != "drop":
@@ -124,6 +142,16 @@ def _pick_drop(active_faults):
 def _pick_corrupt(active_faults):
     for f in active_faults:
         if f.kind != "corrupt":
+            continue
+        prob = float(f.spec.get("probability", 1.0))
+        if should_trigger(prob):
+            return f
+    return None
+
+
+def _pick_error(active_faults):
+    for f in active_faults:
+        if f.kind != "error":
             continue
         prob = float(f.spec.get("probability", 1.0))
         if should_trigger(prob):
@@ -212,6 +240,17 @@ async def handle(req: WorkRequest):
             code = int(drop.spec.get("status_code", 503))
             raise HTTPException(status_code=code, detail="fault: drop 503")
 
+        err_fault = _pick_error(active_faults)
+        if err_fault is not None:
+            RT.fail += 1
+            RT.last_error = "fault_error"
+            code = int(err_fault.spec.get("status_code", 500))
+            msg = str(err_fault.spec.get("message", "fault: error"))
+            return JSONResponse(
+                status_code=code,
+                content={"error": msg, "worker_id": WORKER_ID, "kind": "error"},
+            )
+
         cfg = RT.cfg
 
     async with RT.lock:
@@ -226,10 +265,13 @@ async def handle(req: WorkRequest):
         if extra_delay_ms > 0:
             await asyncio.sleep(extra_delay_ms / 1000.0)
 
+        burn_ms = _sum_cpu_burn_ms(active_faults)
+        if burn_ms > 0:
+            await asyncio.to_thread(_busy_cpu, burn_ms)
+
         if drop is not None and drop.spec.get("mode") == "timeout":
             sleep_ms = int(drop.spec.get("sleep_ms", 5000))
             await asyncio.sleep(sleep_ms / 1000.0)
-
             async with RT.lock:
                 RT.fail += 1
                 RT.last_error = "fault_drop_timeout"

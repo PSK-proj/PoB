@@ -33,3 +33,18 @@ def test_fault_ttl_expires():
     r = c.get("/faults")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_error_fault_returns_json():
+    _clean()
+    c.post("/faults", json={"kind": "error", "status_code": 500, "message": "boom", "duration_sec": 5})
+    r = c.post("/handle", json={})
+    assert r.status_code == 500
+    assert r.json()["error"] == "boom"
+
+def test_cpu_burn_fault_still_handles():
+    _clean()
+    c.post("/faults", json={"kind": "cpu_burn", "burn_ms": 10, "duration_sec": 5})
+    r = c.post("/handle", json={})
+    assert r.status_code == 200
+    assert r.json()["worker_id"]
