@@ -17,6 +17,7 @@ from lb.core.registry import WorkerState
 from lb.core.smooth_wrr import SmoothWRR
 from lb.clients.worker_api import fetch_health, forward_handle
 from lb.stream.state_stream import router as stream_router
+from lb.control.worker_config import router as worker_config_router
 
 
 WORKER_URLS = os.getenv("WORKER_URLS", "").strip()
@@ -266,6 +267,7 @@ app = FastAPI(title="Load Balancer", version="0.3.0", lifespan=lifespan)
 app.include_router(traffic_router)
 app.include_router(weights_router)
 app.include_router(stream_router)
+app.include_router(worker_config_router)
 
 
 @app.get("/health")

@@ -44,6 +44,8 @@ async def set_manual_weight(request: Request, worker_id: str, payload: ManualWei
     w = _find_worker(rt, worker_id)
     if w is None:
         raise HTTPException(status_code=404, detail="worker not found")
+    if rt.weight_mode != "manual":
+        raise HTTPException(status_code=409, detail="manual_weight can be set only in manual mode")
 
     async with rt.balancer.lock:
         w.manual_weight = int(payload.weight)
