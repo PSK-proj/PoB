@@ -8,10 +8,13 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import PlainTextResponse, JSONResponse
 from pydantic import BaseModel, Field
 
+from worker.faults import FaultCreate, FaultRegistry, FaultView, should_trigger
 
-app = FastAPI(title="Worker", version="0.3.0")
+
+app = FastAPI(title="Worker", version="0.4.0")
 
 WORKER_ID = os.getenv("WORKER_ID", "worker-unknown")
 
@@ -66,6 +69,8 @@ class Runtime:
     last_error: Optional[str] = None
     last_simulated_ms: Optional[int] = None
     last_completed_at: Optional[float] = None
+
+    faults: FaultRegistry = field(default_factory=FaultRegistry)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
@@ -93,6 +98,37 @@ async def _snapshot_metrics() -> Metrics:
             last_simulated_ms=RT.last_simulated_ms,
             last_completed_at=RT.last_completed_at,
         )
+
+
+def _sum_delay_ms(active_faults) -> int:
+    total = 0
+    for f in active_faults:
+        if f.kind != "delay":
+            continue
+        prob = float(f.spec.get("probability", 1.0))
+        if should_trigger(prob):
+            total += int(f.spec.get("delay_ms", 0))
+    return max(0, total)
+
+
+def _pick_drop(active_faults):
+    for f in active_faults:
+        if f.kind != "drop":
+            continue
+        prob = float(f.spec.get("probability", 1.0))
+        if should_trigger(prob):
+            return f
+    return None
+
+
+def _pick_corrupt(active_faults):
+    for f in active_faults:
+        if f.kind != "corrupt":
+            continue
+        prob = float(f.spec.get("probability", 1.0))
+        if should_trigger(prob):
+            return f
+    return None
 
 
 @app.get("/health")
@@ -135,25 +171,87 @@ async def reset_metrics():
     return MetricsResetResponse(before=before, after=after)
 
 
+@app.get("/faults", response_model=list[FaultView])
+async def list_faults():
+    async with RT.lock:
+        return RT.faults.list_views()
+
+
+@app.post("/faults", response_model=FaultView)
+async def add_fault(payload: FaultCreate):
+    async with RT.lock:
+        return RT.faults.add(payload)
+
+
+@app.delete("/faults/{fault_id}")
+async def delete_fault(fault_id: str):
+    async with RT.lock:
+        ok = RT.faults.delete(fault_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="fault not found")
+    return {"ok": True, "fault_id": fault_id}
+
+
+@app.delete("/faults")
+async def clear_faults():
+    async with RT.lock:
+        n = RT.faults.clear()
+    return {"ok": True, "cleared": n}
+
+
 @app.post("/handle", response_model=WorkResponse)
 async def handle(req: WorkRequest):
     async with RT.lock:
         RT.total += 1
+        active_faults = RT.faults.snapshot_active()
+
+        drop = _pick_drop(active_faults)
+        if drop is not None and drop.spec.get("mode", "503") == "503":
+            RT.fail += 1
+            RT.last_error = "fault_drop_503"
+            code = int(drop.spec.get("status_code", 503))
+            raise HTTPException(status_code=code, detail="fault: drop 503")
 
         cfg = RT.cfg
+
+    async with RT.lock:
         if RT.inflight >= cfg.capacity:
             RT.fail += 1
             RT.last_error = "over_capacity"
             raise HTTPException(status_code=503, detail="over capacity")
-
         RT.inflight += 1
-        base_lat_ms = cfg.base_lat_ms
-        jitter_ms = cfg.jitter_ms
 
     try:
-        jitter = random.randint(0, max(0, jitter_ms))
-        simulated = base_lat_ms + jitter
+        extra_delay_ms = _sum_delay_ms(active_faults)
+        if extra_delay_ms > 0:
+            await asyncio.sleep(extra_delay_ms / 1000.0)
+
+        if drop is not None and drop.spec.get("mode") == "timeout":
+            sleep_ms = int(drop.spec.get("sleep_ms", 5000))
+            await asyncio.sleep(sleep_ms / 1000.0)
+
+            async with RT.lock:
+                RT.fail += 1
+                RT.last_error = "fault_drop_timeout"
+            raise HTTPException(status_code=504, detail="fault: timeout")
+
+        jitter = random.randint(0, max(0, cfg.jitter_ms))
+        simulated = cfg.base_lat_ms + jitter
         await asyncio.sleep(simulated / 1000.0)
+
+        corrupt = _pick_corrupt(active_faults)
+        if corrupt is not None:
+            async with RT.lock:
+                RT.fail += 1
+                RT.last_error = "fault_corrupt"
+
+            mode = corrupt.spec.get("mode", "invalid_json")
+            if mode == "bad_fields":
+                return JSONResponse(
+                    status_code=500,
+                    content={"worker": WORKER_ID, "msg": "CORRUPTED", "simulated_ms": "NaN"},
+                )
+            return PlainTextResponse(status_code=500, content="CORRUPTED")
 
         async with RT.lock:
             RT.ok += 1
@@ -168,9 +266,10 @@ async def handle(req: WorkRequest):
         )
 
     except Exception as e:
-        async with RT.lock:
-            RT.fail += 1
-            RT.last_error = str(e)
+        if not isinstance(e, HTTPException):
+            async with RT.lock:
+                RT.fail += 1
+                RT.last_error = str(e)
         raise
 
     finally:

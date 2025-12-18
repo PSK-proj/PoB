@@ -52,3 +52,26 @@ async def forward_handle(
     except Exception:
         body = {"raw": r.text}
     return r.status_code, body, latency_ms
+
+async def list_faults(client: httpx.AsyncClient, worker: WorkerState) -> Any:
+    r = await client.get(f"{worker.url}/faults")
+    r.raise_for_status()
+    return r.json()
+
+
+async def add_fault(client: httpx.AsyncClient, worker: WorkerState, payload: dict) -> Any:
+    r = await client.post(f"{worker.url}/faults", json=payload)
+    r.raise_for_status()
+    return r.json()
+
+
+async def delete_fault(client: httpx.AsyncClient, worker: WorkerState, fault_id: str) -> Any:
+    r = await client.delete(f"{worker.url}/faults/{fault_id}")
+    r.raise_for_status()
+    return r.json()
+
+
+async def clear_faults(client: httpx.AsyncClient, worker: WorkerState) -> Any:
+    r = await client.delete(f"{worker.url}/faults")
+    r.raise_for_status()
+    return r.json()
