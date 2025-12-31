@@ -53,7 +53,9 @@ async def list_worker_faults(request: Request, worker_id: str):
     if w is None:
         raise HTTPException(status_code=404, detail="worker not found")
     try:
-        return await request.app.state.rt.http.get(f"{w.url}/faults").json()
+        r = await rt.http.get(f"{w.url}/faults")
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
         raise _upstream_error(worker_id, "list_faults", e)
 

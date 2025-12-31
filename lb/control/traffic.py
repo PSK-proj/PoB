@@ -18,6 +18,19 @@ class TrafficStart(BaseModel):
 async def start(payload: TrafficStart):
     try:
         return await post("/start", payload.model_dump())
+    except httpx.HTTPStatusError as e:
+        if e.response is not None and e.response.status_code == 409:
+            detail = None
+            try:
+                body = e.response.json()
+                if isinstance(body, dict):
+                    detail = body.get("detail")
+            except Exception:
+                detail = None
+            if not detail:
+                detail = "Clientgen already running"
+            raise HTTPException(status_code=409, detail=detail)
+        raise HTTPException(status_code=502, detail=f"clientgen error: {e}")
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"clientgen error: {e}")
 
