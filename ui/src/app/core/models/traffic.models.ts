@@ -5,6 +5,22 @@ export interface TrafficStartRequest {
   profile?: string;
 }
 
+export interface TrafficStartResponse {
+  ok: true;
+  message: string;
+  config: {
+    rps: number;
+    duration_sec?: number | null;
+    endpoint: string;
+    profile: string;
+  };
+}
+
+export interface TrafficStopResponse {
+  ok: true;
+  message: string;
+}
+
 export interface TrafficStatusResponse {
   running: boolean;
   rps?: number | null;

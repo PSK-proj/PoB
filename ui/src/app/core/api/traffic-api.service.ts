@@ -4,6 +4,8 @@ import { API_BASE_URL } from '../config/environment.tokens';
 import { joinUrl } from '../utils/url';
 import type {
   TrafficStartRequest,
+  TrafficStartResponse,
+  TrafficStopResponse,
   TrafficStatusResponse,
 } from '../models/traffic.models';
 
@@ -13,11 +15,17 @@ export class TrafficApiService {
   private readonly base = inject(API_BASE_URL);
 
   start(req: TrafficStartRequest) {
-    return this.http.post(joinUrl(this.base, '/traffic/start'), req);
+    return this.http.post<TrafficStartResponse>(
+      joinUrl(this.base, '/traffic/start'),
+      req
+    );
   }
 
   stop() {
-    return this.http.post(joinUrl(this.base, '/traffic/stop'), {});
+    return this.http.post<TrafficStopResponse>(
+      joinUrl(this.base, '/traffic/stop'),
+      {}
+    );
   }
 
   status() {
