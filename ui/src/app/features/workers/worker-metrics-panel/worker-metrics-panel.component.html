@@ -1,0 +1,23 @@
+<mat-card class="inner">
+    <mat-card-title>Metrics</mat-card-title>
+
+    <mat-progress-bar *ngIf="busy$ | async" mode="indeterminate"></mat-progress-bar>
+
+    <div class="actions">
+        <button mat-stroked-button type="button" (click)="refresh()">Refresh</button>
+        <button mat-flat-button color="warn" type="button" (click)="reset()">Reset</button>
+    </div>
+
+    <div class="grid" *ngIf="metrics$ | async as m">
+        <div class="kv"><span>inflight</span><b>{{ m.inflight }}</b></div>
+        <div class="kv"><span>total</span><b>{{ m.total }}</b></div>
+        <div class="kv"><span>ok</span><b>{{ m.ok }}</b></div>
+        <div class="kv"><span>fail</span><b>{{ m.fail }}</b></div>
+        <div class="kv"><span>last_error</span><b>{{ m.last_error ?? '—' }}</b></div>
+        <div class="kv"><span>last_simulated_ms</span><b>{{ m.last_simulated_ms ?? '—' }}</b></div>
+        <div class="kv">
+            <span>last_completed_at</span>
+            <b>{{ m.last_completed_at ? ((m.last_completed_at * 1000) | date:'HH:mm:ss') : '—' }}</b>
+        </div>
+    </div>
+</mat-card>

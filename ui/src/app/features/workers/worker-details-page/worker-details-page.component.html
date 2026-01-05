@@ -1,14 +1,43 @@
-<mat-card>
-    <mat-card-title>Worker details</mat-card-title>
-    <mat-card-subtitle *ngIf="workerId$ | async as id">
-        worker: <b>{{ id }}</b>
-    </mat-card-subtitle>
+<ng-container *ngIf="workerId$ | async as id">
+    <ng-container *ngIf="worker$ | async as workers">
+        <mat-card class="card">
+            <mat-card-title class="title">
+                <a routerLink="/workers">Workers</a>
+                <span class="sep">/</span>
+                <span>{{ id }}</span>
+            </mat-card-title>
 
-    <div style="margin-top: 12px">
-        <button mat-stroked-button routerLink="/workers">Back to workers</button>
-    </div>
+            <mat-card-subtitle *ngIf="findWorker(workers, id) as w; else missing">
+                <mat-chip-set>
+                    <mat-chip [color]="w.online ? 'primary' : 'warn'">{{ w.online ? 'online' : 'offline' }}</mat-chip>
+                </mat-chip-set>
+                <span class="meta">
+                    eff_w: <b>{{ w.effective_weight }}</b>
+                    • assigned: <b>{{ w.assigned_pct | number:'1.0-2' }}%</b>
+                    • ok/fail: <b>{{ w.ok }}</b>/<b>{{ w.fail }}</b>
+                    • avg: <b>{{ w.avg_latency_ms | number:'1.0-2' }}ms</b>
+                    • last: <b>{{ w.last_seen ? ((w.last_seen * 1000) | date:'HH:mm:ss') : '—' }}</b>
+                    • err: <b>{{ w.last_error ?? '—' }}</b>
+                </span>
+            </mat-card-subtitle>
 
-    <p style="margin-top: 12px; opacity: 0.8">
-        Next: config / metrics / faults UI.
-    </p>
-</mat-card>
+            <ng-template #missing>
+                <mat-card-subtitle>Worker not in current state snapshot.</mat-card-subtitle>
+            </ng-template>
+        </mat-card>
+
+        <mat-card class="card">
+            <mat-tab-group>
+                <mat-tab label="Config">
+                    <app-worker-config-panel [workerId]="id"></app-worker-config-panel>
+                </mat-tab>
+                <mat-tab label="Metrics">
+                    <app-worker-metrics-panel [workerId]="id"></app-worker-metrics-panel>
+                </mat-tab>
+                <mat-tab label="Faults">
+                    <app-worker-faults-panel [workerId]="id"></app-worker-faults-panel>
+                </mat-tab>
+            </mat-tab-group>
+        </mat-card>
+    </ng-container>
+</ng-container>

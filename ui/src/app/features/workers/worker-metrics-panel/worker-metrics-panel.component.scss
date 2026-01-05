@@ -1,0 +1,36 @@
+.inner {
+    margin-top: 12px;
+    padding: 10px;
+}
+
+.actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+}
+
+.grid {
+    margin-top: 10px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    gap: 10px;
+}
+
+.kv {
+    padding: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.kv span {
+    opacity: 0.75;
+}
+
+@media (max-width: 900px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}
