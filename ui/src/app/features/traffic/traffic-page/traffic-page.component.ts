@@ -22,9 +22,10 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatExpansionModule } from '@angular/material/expansion';
 
-import { BehaviorSubject, combineLatest, EMPTY, timer } from 'rxjs';
+import { BehaviorSubject, combineLatest, of, timer } from 'rxjs';
 import {
   catchError,
+  distinctUntilChanged,
   finalize,
   map,
   shareReplay,
@@ -75,7 +76,8 @@ export class TrafficPageComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   private readonly refresh$ = new BehaviorSubject<void>(undefined);
-  private readonly busy$ = new BehaviorSubject<boolean>(false);
+  private readonly busySubject = new BehaviorSubject<boolean>(false);
+  readonly busy$ = this.busySubject.asObservable();
 
   readonly form: TrafficForm = new FormGroup({
     rps: new FormControl(25, {
@@ -106,7 +108,19 @@ export class TrafficPageComponent {
           this.snack.open(`Traffic status error: ${this.errMsg(e)}`, 'OK', {
             duration: 3500,
           });
-          return EMPTY;
+          const fallback: TrafficStatusResponse = {
+            running: false,
+            rps: null,
+            duration_sec: null,
+            profile: null,
+            endpoint: null,
+            started_at: null,
+            total_sent: 0,
+            total_ok: 0,
+            total_fail: 0,
+            last_error: this.errMsg(e),
+          };
+          return of(fallback);
         })
       )
     ),
@@ -114,15 +128,27 @@ export class TrafficPageComponent {
   );
 
   readonly vm$ = combineLatest([this.status$, this.busy$]).pipe(
-    map(([status, busy]) => ({
-      status,
-      busy,
-      canStart: !busy && !status.running,
-      canStop: !busy && status.running,
-      inputsDisabled: busy || status.running,
-    })),
+    map(([status, busy]) => {
+      const inputsDisabled = busy || status.running;
+      return {
+        status,
+        busy,
+        canStart: !busy && !status.running,
+        canStop: !busy && status.running,
+        inputsDisabled,
+      };
+    }),
     shareReplay({ bufferSize: 1, refCount: true })
   );
+
+  private readonly _syncDisabled = this.vm$
+    .pipe(
+      map((vm) => vm.inputsDisabled),
+      distinctUntilChanged(),
+      tap((disabled) => this.syncFormDisabled(disabled)),
+      takeUntilDestroyed(this.destroyRef)
+    )
+    .subscribe();
 
   refresh(): void {
     this.refresh$.next();
@@ -138,7 +164,7 @@ export class TrafficPageComponent {
     }
 
     const payload = this.buildStartRequest();
-    this.busy$.next(true);
+    this.busySubject.next(true);
 
     this.api
       .start(payload)
@@ -148,10 +174,10 @@ export class TrafficPageComponent {
           this.snack.open(`Start failed: ${this.errMsg(e)}`, 'OK', {
             duration: 3500,
           });
-          return EMPTY;
+          return of(void 0);
         }),
         finalize(() => {
-          this.busy$.next(false);
+          this.busySubject.next(false);
           this.refresh();
         }),
         takeUntilDestroyed(this.destroyRef)
@@ -162,7 +188,7 @@ export class TrafficPageComponent {
   stop(currentStatus: TrafficStatusResponse): void {
     if (!currentStatus.running) return;
 
-    this.busy$.next(true);
+    this.busySubject.next(true);
 
     this.api
       .stop()
@@ -172,15 +198,23 @@ export class TrafficPageComponent {
           this.snack.open(`Stop failed: ${this.errMsg(e)}`, 'OK', {
             duration: 3500,
           });
-          return EMPTY;
+          return of(void 0);
         }),
         finalize(() => {
-          this.busy$.next(false);
+          this.busySubject.next(false);
           this.refresh();
         }),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe();
+  }
+
+  private syncFormDisabled(disabled: boolean): void {
+    if (disabled) {
+      if (!this.form.disabled) this.form.disable({ emitEvent: false });
+      return;
+    }
+    if (this.form.disabled) this.form.enable({ emitEvent: false });
   }
 
   private buildStartRequest(): TrafficStartRequest {

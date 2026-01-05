@@ -1,5 +1,4 @@
 <div class="page" *ngIf="vm$ | async as vm">
-
     <mat-card class="card">
         <mat-card-title>Traffic control</mat-card-title>
         <mat-card-subtitle>ClientGen proxied via LB</mat-card-subtitle>
@@ -9,8 +8,7 @@
         <form class="grid" [formGroup]="form">
             <mat-form-field appearance="outline">
                 <mat-label>RPS</mat-label>
-                <input matInput type="number" formControlName="rps" step="0.1" min="0.1" max="5000"
-                    [disabled]="vm.inputsDisabled" />
+                <input matInput type="number" formControlName="rps" step="0.1" min="0.1" max="5000" />
                 <mat-hint>0.1 .. 5000</mat-hint>
                 <mat-error *ngIf="form.controls.rps.hasError('required')">Required</mat-error>
                 <mat-error *ngIf="form.controls.rps.hasError('min')">Min 0.1</mat-error>
@@ -19,8 +17,7 @@
 
             <mat-form-field appearance="outline">
                 <mat-label>Duration (sec)</mat-label>
-                <input matInput type="number" formControlName="duration_sec" step="0.1" min="0.1"
-                    [disabled]="vm.inputsDisabled" />
+                <input matInput type="number" formControlName="duration_sec" step="0.1" min="0.1" />
                 <mat-hint>Leave empty for no limit</mat-hint>
                 <mat-error *ngIf="form.controls.duration_sec.hasError('min')">Min 0.1</mat-error>
             </mat-form-field>
@@ -42,37 +39,37 @@
                     Refresh
                 </button>
             </div>
+
+            <mat-expansion-panel class="advanced" [disabled]="vm.inputsDisabled">
+                <mat-expansion-panel-header>
+                    <mat-panel-title>Advanced</mat-panel-title>
+                    <mat-panel-description>endpoint / profile</mat-panel-description>
+                </mat-expansion-panel-header>
+
+                <div class="grid-advanced">
+                    <mat-form-field appearance="outline">
+                        <mat-label>Endpoint</mat-label>
+                        <input matInput formControlName="endpoint" />
+                        <mat-hint>Default: /request</mat-hint>
+                        <mat-error *ngIf="form.controls.endpoint.hasError('required')">Required</mat-error>
+                        <mat-error *ngIf="form.controls.endpoint.hasError('pattern')">Must start with "/"</mat-error>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                        <mat-label>Profile</mat-label>
+                        <input matInput formControlName="profile" readonly />
+                        <mat-hint>Backend currently uses constant</mat-hint>
+                    </mat-form-field>
+                </div>
+            </mat-expansion-panel>
         </form>
-
-        <mat-expansion-panel class="advanced" [disabled]="vm.inputsDisabled">
-            <mat-expansion-panel-header>
-                <mat-panel-title>Advanced</mat-panel-title>
-                <mat-panel-description>endpoint / profile</mat-panel-description>
-            </mat-expansion-panel-header>
-
-            <div class="grid-advanced">
-                <mat-form-field appearance="outline">
-                    <mat-label>Endpoint</mat-label>
-                    <input matInput formControlName="endpoint" />
-                    <mat-hint>Default: /request</mat-hint>
-                    <mat-error *ngIf="form.controls.endpoint.hasError('required')">Required</mat-error>
-                    <mat-error *ngIf="form.controls.endpoint.hasError('pattern')">Must start with "/"</mat-error>
-                </mat-form-field>
-
-                <mat-form-field appearance="outline">
-                    <mat-label>Profile</mat-label>
-                    <input matInput formControlName="profile" readonly />
-                    <mat-hint>Backend currently uses constant</mat-hint>
-                </mat-form-field>
-            </div>
-        </mat-expansion-panel>
     </mat-card>
 
     <mat-card class="card">
         <mat-card-title>Status</mat-card-title>
 
         <mat-chip-set>
-            <mat-chip [color]="vm.status.running ? 'primary' : undefined">
+            <mat-chip [color]="vm.status.running ? 'primary' : null">
                 {{ vm.status.running ? 'running' : 'stopped' }}
             </mat-chip>
             <mat-chip *ngIf="vm.status.last_error">
@@ -104,5 +101,4 @@
             <div class="row"><span class="k">total_fail</span><span class="v">{{ vm.status.total_fail }}</span></div>
         </div>
     </mat-card>
-
 </div>

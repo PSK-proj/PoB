@@ -31,6 +31,7 @@ import {
   mergeMap,
   shareReplay,
   startWith,
+  tap,
   toArray,
 } from 'rxjs/operators';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -104,6 +105,7 @@ export class WorkersPageComponent {
     FormControl<number | null>
   >();
   private readonly editingManualWeight = new Set<string>();
+  private manualInputsDisabled = false;
 
   readonly cols = [
     'select',
@@ -165,6 +167,7 @@ export class WorkersPageComponent {
         canBulk: !busy && selectedCount > 0,
       };
     }),
+    tap((vm) => this.syncManualWeightDisabled(vm.busy || vm.mode !== 'manual')),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -222,7 +225,7 @@ export class WorkersPageComponent {
     this.weightsApi
       .setMode(next)
       .pipe(
-        map(() => {
+        tap(() => {
           this.snack.open(`LB weight mode set to ${next}`, 'OK', {
             duration: 2000,
           });
@@ -262,9 +265,13 @@ export class WorkersPageComponent {
 
     let ctrl = this.manualWeightCtrls.get(id);
     if (!ctrl) {
-      ctrl = new FormControl<number | null>(worker.manual_weight ?? null, {
-        validators: [Validators.min(1), Validators.max(1000)],
-      });
+      ctrl = new FormControl<number | null>(
+        {
+          value: worker.manual_weight ?? null,
+          disabled: this.manualInputsDisabled,
+        },
+        { validators: [Validators.min(1), Validators.max(1000)] }
+      );
       this.manualWeightCtrls.set(id, ctrl);
       return ctrl;
     }
@@ -311,7 +318,7 @@ export class WorkersPageComponent {
     this.weightsApi
       .setManualWeight(worker.id, value)
       .pipe(
-        map(() => {
+        tap(() => {
           ctrl.markAsPristine();
           this.snack.open(`Manual weight set for ${worker.id}`, 'OK', {
             duration: 2000,
@@ -342,7 +349,7 @@ export class WorkersPageComponent {
     this.weightsApi
       .clearManualWeight(worker.id)
       .pipe(
-        map(() => {
+        tap(() => {
           const ctrl = this.getManualWeightCtrl(worker);
           ctrl.setValue(null, { emitEvent: false });
           ctrl.markAsPristine();
@@ -354,7 +361,9 @@ export class WorkersPageComponent {
           this.snack.open(
             `Clear manual weight failed: ${this.errMsg(e)}`,
             'OK',
-            { duration: 3500 }
+            {
+              duration: 3500,
+            }
           );
           return of(void 0);
         }),
@@ -416,6 +425,17 @@ export class WorkersPageComponent {
       );
   }
 
+  private syncManualWeightDisabled(disabled: boolean): void {
+    if (disabled === this.manualInputsDisabled) return;
+    this.manualInputsDisabled = disabled;
+
+    for (const ctrl of this.manualWeightCtrls.values()) {
+      if (disabled) {
+        if (!ctrl.disabled) ctrl.disable({ emitEvent: false });
+      } else if (ctrl.disabled) ctrl.enable({ emitEvent: false });
+    }
+  }
+
   private reportBulk(label: string, results: BulkResult[]): void {
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
@@ -434,10 +454,13 @@ export class WorkersPageComponent {
       .slice(0, 2)
       .map((f) => `${f.id}: ${f.error}`)
       .join(' • ');
+
     this.snack.open(
       `${label}: ${okCount} ok, ${failCount} failed. ${sample}`,
       'OK',
-      { duration: 6500 }
+      {
+        duration: 6500,
+      }
     );
   }
 
