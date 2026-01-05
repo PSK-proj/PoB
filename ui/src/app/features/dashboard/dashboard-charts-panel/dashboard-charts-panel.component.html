@@ -1,0 +1,31 @@
+<div class="grid" *ngIf="vm$ | async as vm">
+    <mat-card class="card">
+        <mat-card-title>Throughput</mat-card-title>
+        <mat-card-subtitle>
+            assigned/s (rolling) • now:
+            <b>{{ vm.lastThroughput == null ? '—' : (vm.lastThroughput | number:'1.0-2') }}</b>
+        </mat-card-subtitle>
+        <app-echart [options]="vm.throughputBaseOpt" [merge]="vm.throughputMerge" [height]="260"></app-echart>
+    </mat-card>
+
+    <mat-card class="card">
+        <mat-card-title>Fail rate</mat-card-title>
+        <mat-card-subtitle>
+            Δfail / Δassigned (%) • now:
+            <b>{{ vm.lastFailRate == null ? '—' : (vm.lastFailRate | number:'1.0-2') }}%</b>
+        </mat-card-subtitle>
+        <app-echart [options]="vm.failRateBaseOpt" [merge]="vm.failRateMerge" [height]="260"></app-echart>
+    </mat-card>
+
+    <mat-card class="card">
+        <mat-card-title>Assigned share</mat-card-title>
+        <mat-card-subtitle>assigned_pct per worker (rolling)</mat-card-subtitle>
+        <app-echart [options]="vm.shareBaseOpt" [merge]="vm.shareMerge" [height]="300"></app-echart>
+    </mat-card>
+
+    <mat-card class="card">
+        <mat-card-title>Latency</mat-card-title>
+        <mat-card-subtitle>avg_latency_ms per worker (rolling)</mat-card-subtitle>
+        <app-echart [options]="vm.latencyBaseOpt" [merge]="vm.latencyMerge" [height]="300"></app-echart>
+    </mat-card>
+</div>

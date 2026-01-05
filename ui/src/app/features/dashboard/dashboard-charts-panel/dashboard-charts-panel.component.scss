@@ -1,0 +1,21 @@
+:host {
+    display: block;
+    margin-top: 12px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(420px, 1fr));
+    gap: 12px;
+    align-items: stretch;
+}
+
+.card {
+    padding: 6px;
+}
+
+@media (max-width: 1100px) {
+    .grid {
+        grid-template-columns: 1fr;
+    }
+}

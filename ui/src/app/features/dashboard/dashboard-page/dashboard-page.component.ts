@@ -6,10 +6,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog } from '@angular/material/dialog';
-import { ExperimentResetDialogComponent } from '../experiment-reset-dialog/experiment-reset-dialog.component';
-
-import { StateStreamService } from '../../../core/realtime/state-stream.service';
 import { MatButtonModule } from '@angular/material/button';
+
+import { ExperimentResetDialogComponent } from '../experiment-reset-dialog/experiment-reset-dialog.component';
+import { StateStreamService } from '../../../core/realtime/state-stream.service';
+import { DashboardChartsPanelComponent } from '../dashboard-charts-panel/dashboard-charts-panel.component';
 
 @Component({
   standalone: true,
@@ -23,6 +24,7 @@ import { MatButtonModule } from '@angular/material/button';
     MatTableModule,
     MatChipsModule,
     MatButtonModule,
+    DashboardChartsPanelComponent,
   ],
   templateUrl: './dashboard-page.component.html',
   styleUrl: './dashboard-page.component.scss',
