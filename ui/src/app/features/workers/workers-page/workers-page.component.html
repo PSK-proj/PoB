@@ -1,10 +1,8 @@
 <div class="page" *ngIf="vm$ | async as vm">
-
     <mat-card class="card">
         <mat-card-title>Workers (management)</mat-card-title>
         <mat-card-subtitle>
             Mode: <b>{{ vm.mode }}</b>
-            <span class="muted">• switch mode on Dashboard</span>
             • selected: <b>{{ vm.selectedCount }}</b>/<b>{{ vm.allCount }}</b>
         </mat-card-subtitle>
 
@@ -27,6 +25,15 @@
             </mat-form-field>
 
             <div class="bulk">
+                <div class="mode-switch" [matTooltip]="modeTooltip(vm.mode)">
+                    <span class="muted small">Weights</span>
+                    <mat-button-toggle-group [value]="vm.mode" [disabled]="vm.busy"
+                        (change)="onWeightModeChange($event.value, vm.mode)">
+                        <mat-button-toggle value="manual">Manual</mat-button-toggle>
+                        <mat-button-toggle value="auto">Auto</mat-button-toggle>
+                    </mat-button-toggle-group>
+                </div>
+
                 <button mat-stroked-button type="button" [disabled]="!vm.canBulk"
                     (click)="bulkResetMetrics(getSelectedIds())">
                     <mat-icon>restart_alt</mat-icon>
@@ -49,7 +56,6 @@
     <mat-card class="card">
         <div class="table-wrap">
             <table mat-table [dataSource]="vm.workers" [trackBy]="trackByWorkerId" class="mat-elevation-z1">
-
                 <ng-container matColumnDef="select">
                     <th mat-header-cell *matHeaderCellDef>
                         <mat-checkbox [checked]="vm.allSelected"
@@ -162,5 +168,4 @@
             </table>
         </div>
     </mat-card>
-
 </div>

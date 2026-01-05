@@ -21,6 +21,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 
 import { BehaviorSubject, combineLatest, from, of } from 'rxjs';
 import {
@@ -72,6 +73,7 @@ type WorkerFilters = {
     MatSnackBarModule,
     MatProgressBarModule,
     MatTooltipModule,
+    MatButtonToggleModule,
   ],
   templateUrl: './workers-page.component.html',
   styleUrl: './workers-page.component.scss',
@@ -203,12 +205,48 @@ export class WorkersPageComponent {
     return worker.online ? 'primary' : 'warn';
   }
 
+  modeTooltip(mode: WeightMode): string {
+    return mode === 'auto'
+      ? 'Auto mode: LB recalculates weights periodically based on latency + fail-rate.'
+      : 'Manual mode: you can set per-worker manual weights.';
+  }
+
+  onWeightModeChange(nextRaw: unknown, current: WeightMode): void {
+    if (this.busySubject.value) return;
+
+    const next: WeightMode = nextRaw === 'auto' ? 'auto' : 'manual';
+    if (next === current) return;
+
+    this.busySubject.next(true);
+
+    this.weightsApi
+      .setMode(next)
+      .pipe(
+        map(() => {
+          this.snack.open(`LB weight mode set to ${next}`, 'OK', {
+            duration: 2000,
+          });
+        }),
+        catchError((e: unknown) => {
+          this.snack.open(`Set weight mode failed: ${this.errMsg(e)}`, 'OK', {
+            duration: 4000,
+          });
+          return of(void 0);
+        }),
+        finalize(() => this.busySubject.next(false)),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
   manualWeightDisabled(mode: WeightMode, busy: boolean): boolean {
     return busy || mode !== 'manual';
   }
 
   manualWeightTooltip(mode: WeightMode): string {
-    return mode === 'manual' ? '' : 'Switch LB to manual mode on Dashboard';
+    return mode === 'manual'
+      ? ''
+      : 'Manual weight is available only in manual mode (toggle above).';
   }
 
   onManualWeightFocus(workerId: string): void {

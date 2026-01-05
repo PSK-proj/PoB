@@ -29,6 +29,13 @@
     align-items: center;
 }
 
+.mode-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
 .table-wrap {
     overflow: auto;
     margin-top: 8px;
