@@ -19,6 +19,7 @@ from lb.clients.worker_api import fetch_health, forward_handle
 from lb.stream.state_stream import router as stream_router
 from lb.control.worker_config import router as worker_config_router
 from lb.control.worker_faults import router as worker_faults_router
+from lb.control.experiment import router as experiment_router
 
 
 WORKER_URLS = os.getenv("WORKER_URLS", "").strip()
@@ -270,6 +271,7 @@ app.include_router(weights_router)
 app.include_router(stream_router)
 app.include_router(worker_config_router)
 app.include_router(worker_faults_router)
+app.include_router(experiment_router)
 
 
 @app.get("/health")

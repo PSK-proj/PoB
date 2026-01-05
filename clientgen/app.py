@@ -106,6 +106,24 @@ async def stop():
     return {"ok": True, "message": "stopped"}
 
 
+@app.post("/reset")
+async def reset():
+    if STATE.running:
+        await stop()
+
+    STATE.started_at = None
+    STATE.rps = None
+    STATE.duration_sec = None
+    STATE.profile = None
+    STATE.endpoint = None
+    STATE.total_sent = 0
+    STATE.total_ok = 0
+    STATE.total_fail = 0
+    STATE.last_error = None
+
+    return {"ok": True, "message": "reset"}
+
+
 async def _traffic_loop(req: StartRequest):
     interval = 1.0 / req.rps
     deadline = None

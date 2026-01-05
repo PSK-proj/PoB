@@ -21,6 +21,13 @@
     </mat-card-subtitle>
 </mat-card>
 
+<div class="lb-actions">
+    <button mat-flat-button color="warn" type="button" (click)="openResetExperiment()">
+        Reset experiment
+    </button>
+</div>
+
+
 <mat-card class="mt" *ngIf="state$ | async as s">
     <mat-card-title>LB</mat-card-title>
     <mat-card-subtitle>
