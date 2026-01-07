@@ -34,6 +34,11 @@ export interface LbStateView {
   workers: WorkerView[];
 }
 
+export interface LbStateSample {
+  ts: number;
+  state: LbStateView;
+}
+
 export interface LbResponse {
   chosen_worker: string;
   attempt: number;
@@ -53,5 +58,6 @@ export function isRawBody(x: unknown): x is { raw: string } {
 
 export interface StateStreamMessage {
   type: 'state';
+  ts?: number;
   payload: LbStateView;
 }

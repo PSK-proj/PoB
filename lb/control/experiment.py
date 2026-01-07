@@ -74,5 +74,12 @@ async def reset_experiment(request: Request):
     except Exception as e:
         results.append(ResetResult(target="lb", id="runtime_stats", ok=False, detail=str(e)))
 
+    try:
+        async with rt.history_lock:
+            rt.history.clear()
+        results.append(ResetResult(target="lb", id="history", ok=True))
+    except Exception as e:
+        results.append(ResetResult(target="lb", id="history", ok=False, detail=str(e)))
+
     ok = all(r.ok for r in results)
     return ExperimentResetResponse(ok=ok, results=results)

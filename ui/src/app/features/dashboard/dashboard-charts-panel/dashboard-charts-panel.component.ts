@@ -2,10 +2,20 @@ import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { AsyncPipe, DecimalPipe, NgIf } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import type { EChartsOption, LineSeriesOption } from 'echarts';
-import { auditTime, map, scan, shareReplay } from 'rxjs/operators';
+import { concat, from, of } from 'rxjs';
+import {
+  auditTime,
+  catchError,
+  filter,
+  map,
+  scan,
+  shareReplay,
+  switchMap,
+} from 'rxjs/operators';
 
 import { StateStreamService } from '../../../core/realtime/state-stream.service';
-import type { LbStateView } from '../../../core/models/lb.models';
+import type { LbStateSample, LbStateView } from '../../../core/models/lb.models';
+import { LbApiService } from '../../../core/api/lb-api.service';
 import { EchartComponent } from '../../../shared/echarts/echart/echart.component';
 
 type Point = [number, number];
@@ -51,6 +61,7 @@ type Vm = {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardChartsPanelComponent {
+  private readonly lb = inject(LbApiService);
   private readonly stream = inject(StateStreamService);
 
   private readonly windowMs = 120_000;
@@ -60,8 +71,16 @@ export class DashboardChartsPanelComponent {
   private readonly shareBaseOpt = this.buildShareBaseOption();
   private readonly latencyBaseOpt = this.buildLatencyBaseOption();
 
-  readonly vm$ = this.stream.state$.pipe(
-    map((state) => ({ ts: Date.now(), state })),
+  readonly vm$ = this.lb.stateHistory().pipe(
+    catchError(() => of([] as LbStateSample[])),
+    switchMap((history) => {
+      const lastTs = history.at(-1)?.ts ?? 0;
+      const history$ = from(history);
+      const live$ = this.stream.stateSamples$.pipe(
+        filter((s) => lastTs === 0 || s.ts > lastTs)
+      );
+      return concat(history$, live$);
+    }),
     scan((acc, ev) => this.accumulate(acc, ev.ts, ev.state), this.initAcc()),
     auditTime(1000),
     map((acc): Vm => {

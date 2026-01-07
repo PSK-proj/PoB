@@ -5,6 +5,7 @@ import { joinUrl } from '../utils/url';
 import type {
   HealthResponse,
   LbResponse,
+  LbStateSample,
   LbStateView,
   WorkerView,
 } from '../models/lb.models';
@@ -22,6 +23,9 @@ export class LbApiService {
   }
   state() {
     return this.http.get<LbStateView>(joinUrl(this.base, '/state'));
+  }
+  stateHistory() {
+    return this.http.get<LbStateSample[]>(joinUrl(this.base, '/state/history'));
   }
 
   request(payload?: Record<string, unknown>) {

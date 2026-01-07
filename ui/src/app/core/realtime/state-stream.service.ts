@@ -14,7 +14,7 @@ import {
 } from 'rxjs';
 import { WS_PATH } from '../config/environment.tokens';
 import { wsUrlFromWindow } from '../utils/url';
-import type { StateStreamMessage } from '../models/lb.models';
+import type { LbStateSample, StateStreamMessage } from '../models/lb.models';
 import { LbApiService } from '../api/lb-api.service';
 import { WsClient, type WsStatus } from './ws.client';
 
@@ -41,9 +41,14 @@ export class StateStreamService {
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
-  readonly state$ = this.mode$.pipe(
+  readonly stateSamples$ = this.mode$.pipe(
     distinctUntilChanged(),
-    switchMap((m) => (m === 'ws' ? this.wsState$() : this.pollState$())),
+    switchMap((m) => (m === 'ws' ? this.wsSamples$() : this.pollSamples$())),
+    shareReplay({ bufferSize: 1, refCount: true })
+  );
+
+  readonly state$ = this.stateSamples$.pipe(
+    map((s) => s.state),
     shareReplay({ bufferSize: 1, refCount: true })
   );
 
@@ -68,19 +73,25 @@ export class StateStreamService {
       .subscribe();
   }
 
-  private wsState$() {
+  private wsSamples$() {
     return this.ws.messages$.pipe(
       filter(
         (m): m is StateStreamMessage => !!m && m.type === 'state' && !!m.payload
       ),
-      map((m) => m.payload)
+      map(
+        (m): LbStateSample => ({
+          ts: typeof m.ts === 'number' ? m.ts : Date.now(),
+          state: m.payload,
+        })
+      )
     );
   }
 
-  private pollState$() {
+  private pollSamples$() {
     return interval(1000).pipe(
       startWith(0),
-      switchMap(() => this.lb.state())
+      switchMap(() => this.lb.state()),
+      map((state): LbStateSample => ({ ts: Date.now(), state }))
     );
   }
 

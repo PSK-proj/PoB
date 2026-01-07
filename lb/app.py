@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 import time
 import asyncio
-from dataclasses import dataclass
+from collections import deque
+from dataclasses import dataclass, field
 from typing import Any, Optional
 from contextlib import asynccontextmanager, suppress
 
@@ -34,6 +35,9 @@ LB_STREAM_INTERVAL_SEC = float(os.getenv("LB_STREAM_INTERVAL_SEC", "0.5"))
 LB_WEIGHT_MODE = os.getenv("LB_WEIGHT_MODE", "manual").strip().lower()
 AUTO_WEIGHT_INTERVAL_SEC = float(os.getenv("AUTO_WEIGHT_INTERVAL_SEC", "2.0"))
 AUTO_WEIGHT_MAX = int(os.getenv("AUTO_WEIGHT_MAX", "10"))
+LB_HISTORY_WINDOW_SEC = float(os.getenv("LB_HISTORY_WINDOW_SEC", "120"))
+LB_HISTORY_SAMPLE_SEC = float(os.getenv("LB_HISTORY_SAMPLE_SEC", "1.0"))
+LB_HISTORY_WINDOW_MS = int(max(0.0, LB_HISTORY_WINDOW_SEC) * 1000)
 
 
 class LBRequest(BaseModel):
@@ -75,6 +79,11 @@ class LBState(BaseModel):
     workers: list[WorkerView]
 
 
+class LBStateSample(BaseModel):
+    ts: int
+    state: LBState
+
+
 @dataclass
 class Runtime:
     workers: list[WorkerState]
@@ -83,6 +92,9 @@ class Runtime:
     weight_mode: str = "manual"
     health_task: Optional[asyncio.Task] = None
     auto_task: Optional[asyncio.Task] = None
+    history_task: Optional[asyncio.Task] = None
+    history: deque[LBStateSample] = field(default_factory=deque)
+    history_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 def _parse_worker_urls(raw: str) -> list[str]:
@@ -223,6 +235,43 @@ def _build_worker_views(rt: Runtime) -> list[WorkerView]:
     ]
 
 
+def _build_state(rt: Runtime) -> LBState:
+    total_assigned = sum(w.assigned for w in rt.workers)
+    total_ok = sum(w.ok for w in rt.workers)
+    total_fail = sum(w.fail for w in rt.workers)
+    return LBState(
+        weight_mode=rt.weight_mode,
+        total_assigned=total_assigned,
+        total_ok=total_ok,
+        total_fail=total_fail,
+        workers=_build_worker_views(rt),
+    )
+
+
+async def _record_history(rt: Runtime) -> None:
+    if LB_HISTORY_WINDOW_MS <= 0 or LB_HISTORY_SAMPLE_SEC <= 0:
+        return
+
+    ts_ms = int(time.time() * 1000)
+    sample = LBStateSample(ts=ts_ms, state=_build_state(rt))
+
+    async with rt.history_lock:
+        rt.history.append(sample)
+        cutoff = ts_ms - LB_HISTORY_WINDOW_MS
+        while rt.history and rt.history[0].ts < cutoff:
+            rt.history.popleft()
+
+
+async def _history_loop(rt: Runtime) -> None:
+    interval = max(0.1, LB_HISTORY_SAMPLE_SEC)
+    while True:
+        await asyncio.sleep(interval)
+        try:
+            await _record_history(rt)
+        except Exception:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     urls = _parse_worker_urls(WORKER_URLS)
@@ -251,13 +300,16 @@ async def lifespan(app: FastAPI):
     await _refresh_health_once(rt)
     rt.health_task = asyncio.create_task(_health_loop(rt))
     rt.auto_task = asyncio.create_task(_auto_loop(rt))
+    if LB_HISTORY_WINDOW_MS > 0 and LB_HISTORY_SAMPLE_SEC > 0:
+        await _record_history(rt)
+        rt.history_task = asyncio.create_task(_history_loop(rt))
 
     app.state.rt = rt
     app.state.stream_interval_sec = max(0.05, LB_STREAM_INTERVAL_SEC)
     try:
         yield
     finally:
-        for task in (rt.health_task, rt.auto_task):
+        for task in (rt.health_task, rt.auto_task, rt.history_task):
             if task is not None:
                 task.cancel()
                 with suppress(asyncio.CancelledError):
@@ -288,16 +340,14 @@ def list_workers():
 @app.get("/state", response_model=LBState)
 def state():
     rt: Runtime = app.state.rt
-    total_assigned = sum(w.assigned for w in rt.workers)
-    total_ok = sum(w.ok for w in rt.workers)
-    total_fail = sum(w.fail for w in rt.workers)
-    return LBState(
-        weight_mode=rt.weight_mode,
-        total_assigned=total_assigned,
-        total_ok=total_ok,
-        total_fail=total_fail,
-        workers=_build_worker_views(rt),
-    )
+    return _build_state(rt)
+
+
+@app.get("/state/history", response_model=list[LBStateSample])
+async def state_history():
+    rt: Runtime = app.state.rt
+    async with rt.history_lock:
+        return list(rt.history)
 
 
 @app.post("/request", response_model=LBResponse)
