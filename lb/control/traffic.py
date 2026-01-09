@@ -12,6 +12,7 @@ class TrafficStart(BaseModel):
     duration_sec: float | None = Field(default=None, ge=0.1)
     endpoint: str = "/request"
     profile: str = "constant"
+    concurrency: int = Field(default=100, ge=1, le=1000)
 
 
 @router.post("/start")

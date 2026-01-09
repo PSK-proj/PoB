@@ -43,10 +43,19 @@
             <mat-expansion-panel class="advanced" [disabled]="vm.inputsDisabled">
                 <mat-expansion-panel-header>
                     <mat-panel-title>Advanced</mat-panel-title>
-                    <mat-panel-description>endpoint / profile</mat-panel-description>
+                    <mat-panel-description>endpoint / profile / concurrency</mat-panel-description>
                 </mat-expansion-panel-header>
 
                 <div class="grid-advanced">
+                    <mat-form-field appearance="outline">
+                        <mat-label>Concurrency</mat-label>
+                        <input matInput type="number" formControlName="concurrency" step="1" min="1" max="1000" />
+                        <mat-hint>Parallel in-flight requests (1 .. 1000)</mat-hint>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('required')">Required</mat-error>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('min')">Min 1</mat-error>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('max')">Max 1000</mat-error>
+                    </mat-form-field>
+
                     <mat-form-field appearance="outline">
                         <mat-label>Endpoint</mat-label>
                         <input matInput formControlName="endpoint" />
@@ -79,6 +88,8 @@
 
         <div class="stats">
             <div class="row"><span class="k">RPS</span><span class="v">{{ vm.status.rps ?? '—' }}</span></div>
+            <div class="row"><span class="k">Concurrency</span><span class="v">{{ vm.status.concurrency ?? '—' }}</span>
+            </div>
             <div class="row"><span class="k">Duration</span><span class="v">{{ vm.status.duration_sec ?? '—' }}</span>
             </div>
             <div class="row"><span class="k">Endpoint</span><span class="v">{{ vm.status.endpoint ?? '—' }}</span></div>

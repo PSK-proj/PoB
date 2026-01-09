@@ -3,6 +3,7 @@ export interface TrafficStartRequest {
   duration_sec?: number | null;
   endpoint?: string;
   profile?: string;
+  concurrency?: number;
 }
 
 export interface TrafficStartResponse {
@@ -13,6 +14,7 @@ export interface TrafficStartResponse {
     duration_sec?: number | null;
     endpoint: string;
     profile: string;
+    concurrency?: number;
   };
 }
 
@@ -27,6 +29,7 @@ export interface TrafficStatusResponse {
   duration_sec?: number | null;
   profile?: string | null;
   endpoint?: string | null;
+  concurrency?: number | null;
   started_at?: number | null;
   total_sent: number;
   total_ok: number;

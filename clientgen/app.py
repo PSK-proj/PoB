@@ -18,6 +18,7 @@ class StartRequest(BaseModel):
     duration_sec: Optional[float] = Field(default=None, ge=0.1)
     endpoint: str = Field(default="/request")
     profile: str = Field(default="constant")
+    concurrency: int = Field(default=100, ge=1, le=1000)
 
 
 class StatusResponse(BaseModel):
@@ -26,6 +27,7 @@ class StatusResponse(BaseModel):
     duration_sec: Optional[float] = None
     profile: Optional[str] = None
     endpoint: Optional[str] = None
+    concurrency: Optional[int] = None
     started_at: Optional[float] = None
     total_sent: int
     total_ok: int
@@ -41,6 +43,7 @@ class _State:
     duration_sec: Optional[float] = None
     profile: Optional[str] = None
     endpoint: Optional[str] = None
+    concurrency: Optional[int] = None
     total_sent: int = 0
     total_ok: int = 0
     total_fail: int = 0
@@ -63,6 +66,7 @@ def status():
         duration_sec=STATE.duration_sec,
         profile=STATE.profile,
         endpoint=STATE.endpoint,
+        concurrency=STATE.concurrency,
         started_at=STATE.started_at,
         total_sent=STATE.total_sent,
         total_ok=STATE.total_ok,
@@ -82,6 +86,7 @@ async def start(req: StartRequest):
     STATE.duration_sec = req.duration_sec
     STATE.profile = req.profile
     STATE.endpoint = req.endpoint
+    STATE.concurrency = req.concurrency
     STATE.last_error = None
 
     STATE.task = asyncio.create_task(_traffic_loop(req))
@@ -116,12 +121,29 @@ async def reset():
     STATE.duration_sec = None
     STATE.profile = None
     STATE.endpoint = None
+    STATE.concurrency = None
     STATE.total_sent = 0
     STATE.total_ok = 0
     STATE.total_fail = 0
     STATE.last_error = None
 
     return {"ok": True, "message": "reset"}
+
+
+async def _send_one(client: httpx.AsyncClient, url: str, sem: asyncio.Semaphore):
+    try:
+        STATE.total_sent += 1
+        resp = await client.post(url, json={})
+        if 200 <= resp.status_code < 300:
+            STATE.total_ok += 1
+        else:
+            STATE.total_fail += 1
+            STATE.last_error = f"HTTP {resp.status_code}"
+    except Exception as e:
+        STATE.total_fail += 1
+        STATE.last_error = str(e)
+    finally:
+        sem.release()
 
 
 async def _traffic_loop(req: StartRequest):
@@ -132,31 +154,46 @@ async def _traffic_loop(req: StartRequest):
 
     url = f"{LB_URL}{req.endpoint}"
     timeout = httpx.Timeout(2.0)
+    max_concurrency = max(1, req.concurrency)
+    limits = httpx.Limits(
+        max_connections=max_concurrency, max_keepalive_connections=max_concurrency
+    )
+    sem = asyncio.Semaphore(max_concurrency)
+    inflight: set[asyncio.Task] = set()
+    cancelled = False
 
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, limits=limits) as client:
         try:
             while STATE.running:
                 if deadline is not None and time.monotonic() >= deadline:
                     break
 
                 t0 = time.monotonic()
-                STATE.total_sent += 1
+                await sem.acquire()
+                if not STATE.running:
+                    sem.release()
+                    break
 
-                try:
-                    resp = await client.post(url, json={})
-                    if 200 <= resp.status_code < 300:
-                        STATE.total_ok += 1
-                    else:
-                        STATE.total_fail += 1
-                        STATE.last_error = f"HTTP {resp.status_code}"
-                except Exception as e:
-                    STATE.total_fail += 1
-                    STATE.last_error = str(e)
+                task = asyncio.create_task(_send_one(client, url, sem))
+                inflight.add(task)
+                task.add_done_callback(inflight.discard)
 
                 elapsed = time.monotonic() - t0
                 sleep_for = interval - elapsed
                 if sleep_for > 0:
                     await asyncio.sleep(sleep_for)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
         finally:
-            STATE.running = False
+            if cancelled:
+                STATE.running = False
+                for task in inflight:
+                    task.cancel()
+                if inflight:
+                    await asyncio.gather(*inflight, return_exceptions=True)
+            else:
+                if inflight:
+                    await asyncio.gather(*inflight, return_exceptions=True)
+                STATE.running = False
             STATE.task = None
