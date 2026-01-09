@@ -51,3 +51,20 @@ def test_set_and_clear_manual_weight():
     r = c.delete("/workers/worker-1/manual-weight")
     assert r.status_code == 200
     assert r.json()["manual_weight"] is None
+
+
+def test_manual_weight_rejected_in_auto_mode():
+    app = _mk_app()
+    app.state.rt.weight_mode = "auto"
+    c = TestClient(app)
+
+    r = c.patch("/workers/worker-1/manual-weight", json={"weight": 3})
+    assert r.status_code == 409
+
+
+def test_manual_weight_missing_worker():
+    app = _mk_app()
+    c = TestClient(app)
+
+    r = c.patch("/workers/no/manual-weight", json={"weight": 3})
+    assert r.status_code == 404

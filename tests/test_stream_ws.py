@@ -28,6 +28,7 @@ def test_stream_sends_state_snapshot():
         msg = ws.receive_json()
 
     assert msg["type"] == "state"
+    assert isinstance(msg["ts"], int)
     payload = msg["payload"]
     assert payload["weight_mode"] == "manual"
     assert isinstance(payload["workers"], list)

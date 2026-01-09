@@ -2,13 +2,14 @@ from types import SimpleNamespace
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+import httpx
 
 from lb.core.registry import WorkerState
 from lb.core.smooth_wrr import SmoothWRR
 import lb.control.worker_config as wc
 
 
-def test_patch_worker_config_syncs_lb_state(monkeypatch):
+def _mk_app():
     app = FastAPI()
     app.include_router(wc.router)
 
@@ -22,6 +23,11 @@ def test_patch_worker_config_syncs_lb_state(monkeypatch):
         http=object(),
     )
     app.state.rt = rt
+    return app, w
+
+
+def test_patch_worker_config_syncs_lb_state(monkeypatch):
+    app, w = _mk_app()
 
     async def fake_patch_config(_http, _worker, _payload):
         return {"base_lat_ms": 33, "jitter_ms": 5, "capacity": 50, "weight": 9}
@@ -36,3 +42,24 @@ def test_patch_worker_config_syncs_lb_state(monkeypatch):
     assert w.reported_weight == 9
     assert w.reported_base_lat_ms == 33
     assert w.effective_weight == 9
+
+
+def test_patch_worker_config_empty_patch_returns_400():
+    app, _w = _mk_app()
+    c = TestClient(app)
+
+    r = c.patch("/workers/worker-1/config", json={})
+    assert r.status_code == 400
+
+
+def test_get_metrics_upstream_error(monkeypatch):
+    app, _w = _mk_app()
+
+    async def fake_fetch_metrics(_http, _worker):
+        raise httpx.HTTPError("boom")
+
+    monkeypatch.setattr(wc, "api_fetch_metrics", fake_fetch_metrics)
+
+    c = TestClient(app)
+    r = c.get("/workers/worker-1/metrics")
+    assert r.status_code == 502
