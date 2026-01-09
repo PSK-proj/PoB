@@ -1,4 +1,26 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+    --app-page-pad: clamp(16px, 2.5vw, 28px);
+}
 
-html, body { height: 100%; }
-body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
+    line-height: 1.5;
+    color: #1f2933;
+    background: #f5f6f8;
+}
+
+mat-sidenav-container {
+    background: #f5f6f8;
+}

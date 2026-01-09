@@ -1,21 +1,21 @@
 <mat-sidenav-container class="container">
-    <mat-sidenav mode="side" opened>
+    <mat-sidenav class="sidenav" mode="side" opened>
         <mat-toolbar>Distributed Sim</mat-toolbar>
 
         <mat-nav-list>
-            <a mat-list-item routerLink="/dashboard" routerLinkActive="active">
-                <mat-icon>dashboard</mat-icon>
-                <span>Dashboard</span>
+            <a mat-list-item class="nav-link" routerLink="/dashboard" routerLinkActive="active">
+                <mat-icon matListItemIcon>dashboard</mat-icon>
+                <span matListItemTitle>Dashboard</span>
             </a>
 
-            <a mat-list-item routerLink="/traffic" routerLinkActive="active">
-                <mat-icon>traffic</mat-icon>
-                <span>Traffic</span>
+            <a mat-list-item class="nav-link" routerLink="/traffic" routerLinkActive="active">
+                <mat-icon matListItemIcon>traffic</mat-icon>
+                <span matListItemTitle>Traffic</span>
             </a>
 
-            <a mat-list-item routerLink="/workers" routerLinkActive="active">
-                <mat-icon>dns</mat-icon>
-                <span>Workers</span>
+            <a mat-list-item class="nav-link" routerLink="/workers" routerLinkActive="active">
+                <mat-icon matListItemIcon>dns</mat-icon>
+                <span matListItemTitle>Workers</span>
             </a>
         </mat-nav-list>
     </mat-sidenav>

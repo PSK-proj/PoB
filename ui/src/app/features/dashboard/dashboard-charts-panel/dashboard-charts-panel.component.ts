@@ -271,6 +271,10 @@ export class DashboardChartsPanelComponent {
     return { left: 44, right: 18, top: 30, bottom: 30, containLabel: true };
   }
 
+  private baseGridWithLegend(): EChartsOption['grid'] {
+    return { left: 44, right: 18, top: 56, bottom: 30, containLabel: true };
+  }
+
   private baseTooltip(): EChartsOption['tooltip'] {
     return { trigger: 'axis', axisPointer: { type: 'line' } };
   }
@@ -326,14 +330,22 @@ export class DashboardChartsPanelComponent {
   private buildShareBaseOption(): EChartsOption {
     return {
       animation: false,
-      grid: this.baseGrid(),
+      grid: this.baseGridWithLegend(),
       tooltip: this.baseTooltip(),
       legend: { type: 'scroll', top: 0 },
       xAxis: {
         type: 'time',
         axisLabel: { formatter: (v: unknown) => this.fmtTime(v) },
       },
-      yAxis: { type: 'value', name: '%', min: 0, max: 100 },
+      yAxis: {
+        type: 'value',
+        name: '%',
+        min: 0,
+        max: 100,
+        nameLocation: 'middle',
+        nameRotate: 90,
+        nameGap: 40,
+      },
       series: [],
     };
   }
@@ -341,14 +353,21 @@ export class DashboardChartsPanelComponent {
   private buildLatencyBaseOption(): EChartsOption {
     return {
       animation: false,
-      grid: this.baseGrid(),
+      grid: this.baseGridWithLegend(),
       tooltip: this.baseTooltip(),
       legend: { type: 'scroll', top: 0 },
       xAxis: {
         type: 'time',
         axisLabel: { formatter: (v: unknown) => this.fmtTime(v) },
       },
-      yAxis: { type: 'value', name: 'ms', min: 0 },
+      yAxis: {
+        type: 'value',
+        name: 'ms',
+        min: 0,
+        nameLocation: 'middle',
+        nameRotate: 90,
+        nameGap: 40,
+      },
       series: [],
     };
   }
