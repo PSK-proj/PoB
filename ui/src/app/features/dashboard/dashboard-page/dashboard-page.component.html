@@ -3,7 +3,7 @@
     <mat-card-subtitle>
         <ng-container *ngIf="conn$ | async as c">
             <mat-chip-set>
-                <mat-chip color="primary">
+                <mat-chip color="primary" highlighted>
                     {{
                     c.kind === 'connected'
                     ? 'WS connected'
@@ -50,7 +50,8 @@
                 <th mat-header-cell *matHeaderCellDef>Status</th>
                 <td mat-cell *matCellDef="let w">
                     <mat-chip-set>
-                        <mat-chip [color]="w.online ? 'primary' : 'warn'">
+                        <mat-chip class="status-chip" [class.status-chip--online]="w.online"
+                            [class.status-chip--offline]="!w.online">
                             {{ w.online ? 'online' : 'offline' }}
                         </mat-chip>
                     </mat-chip-set>

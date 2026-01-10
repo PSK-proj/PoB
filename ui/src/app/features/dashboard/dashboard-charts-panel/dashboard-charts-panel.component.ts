@@ -25,6 +25,7 @@ type Acc = {
 
   lastTs: number | null;
   lastAssigned: number | null;
+  lastOk: number | null;
   lastFail: number | null;
 
   throughput: Point[];
@@ -112,6 +113,7 @@ export class DashboardChartsPanelComponent {
       windowMs: this.windowMs,
       lastTs: null,
       lastAssigned: null,
+      lastOk: null,
       lastFail: null,
       throughput: [],
       failRatePct: [],
@@ -131,20 +133,27 @@ export class DashboardChartsPanelComponent {
 
     next.lastTs = ts;
     next.lastAssigned = s.total_assigned;
+    next.lastOk = s.total_ok;
     next.lastFail = s.total_fail;
 
     return next;
   }
 
   private isReset(acc: Acc, s: LbStateView): boolean {
-    if (acc.lastAssigned == null || acc.lastFail == null) return false;
-    return s.total_assigned < acc.lastAssigned || s.total_fail < acc.lastFail;
+    if (acc.lastAssigned == null || acc.lastOk == null || acc.lastFail == null)
+      return false;
+    return (
+      s.total_assigned < acc.lastAssigned ||
+      s.total_ok < acc.lastOk ||
+      s.total_fail < acc.lastFail
+    );
   }
 
   private bootstrapAfterReset(ts: number, s: LbStateView): Acc {
     const acc = this.initAcc();
     acc.lastTs = ts;
     acc.lastAssigned = s.total_assigned;
+    acc.lastOk = s.total_ok;
     acc.lastFail = s.total_fail;
 
     acc.workerIds = s.workers.map((w) => w.id);
@@ -188,14 +197,22 @@ export class DashboardChartsPanelComponent {
   private updateRates(acc: Acc, ts: number, s: LbStateView): void {
     const prevTs = acc.lastTs;
     const prevAssigned = acc.lastAssigned;
+    const prevOk = acc.lastOk;
     const prevFail = acc.lastFail;
 
-    if (prevTs == null || prevAssigned == null || prevFail == null) return;
+    if (
+      prevTs == null ||
+      prevAssigned == null ||
+      prevOk == null ||
+      prevFail == null
+    )
+      return;
 
     const dt = (ts - prevTs) / 1000;
     if (dt <= 0) return;
 
     const dAssigned = Math.max(0, s.total_assigned - prevAssigned);
+    const dOk = Math.max(0, s.total_ok - prevOk);
     const dFail = Math.max(0, s.total_fail - prevFail);
 
     acc.throughput = this.pushTrim(
@@ -205,7 +222,8 @@ export class DashboardChartsPanelComponent {
       acc.windowMs
     );
 
-    const failRate = dAssigned > 0 ? (dFail / dAssigned) * 100 : 0;
+    const dCompleted = dOk + dFail;
+    const failRate = dCompleted > 0 ? (dFail / dCompleted) * 100 : 0;
     acc.failRatePct = this.pushTrim(
       acc.failRatePct,
       [ts, failRate],

@@ -31,10 +31,12 @@ DISABLE_ON_FAIL_SEC = float(os.getenv("LB_DISABLE_ON_FAIL_SEC", "3.0"))
 RETRY_ATTEMPTS = int(os.getenv("LB_RETRY_ATTEMPTS", "2"))
 LAT_EWMA_ALPHA = float(os.getenv("LB_LAT_EWMA_ALPHA", "0.2"))
 LB_STREAM_INTERVAL_SEC = float(os.getenv("LB_STREAM_INTERVAL_SEC", "0.5"))
+HEALTH_TIMEOUT_SEC = float(os.getenv("LB_HEALTH_TIMEOUT_SEC", "2.0"))
 
 LB_WEIGHT_MODE = os.getenv("LB_WEIGHT_MODE", "manual").strip().lower()
 AUTO_WEIGHT_INTERVAL_SEC = float(os.getenv("AUTO_WEIGHT_INTERVAL_SEC", "2.0"))
 AUTO_WEIGHT_MAX = int(os.getenv("AUTO_WEIGHT_MAX", "10"))
+AUTO_WEIGHT_ALPHA = float(os.getenv("AUTO_WEIGHT_ALPHA", str(LAT_EWMA_ALPHA)))
 LB_HISTORY_WINDOW_SEC = float(os.getenv("LB_HISTORY_WINDOW_SEC", "120"))
 LB_HISTORY_SAMPLE_SEC = float(os.getenv("LB_HISTORY_SAMPLE_SEC", "1.0"))
 LB_HISTORY_WINDOW_MS = int(max(0.0, LB_HISTORY_WINDOW_SEC) * 1000)
@@ -89,6 +91,7 @@ class Runtime:
     workers: list[WorkerState]
     balancer: SmoothWRR
     http: httpx.AsyncClient
+    health_http: httpx.AsyncClient
     weight_mode: str = "manual"
     health_task: Optional[asyncio.Task] = None
     auto_task: Optional[asyncio.Task] = None
@@ -109,6 +112,10 @@ def _ewma(prev: float, new: float, alpha: float) -> float:
     return new if prev <= 0 else (alpha * new) + ((1 - alpha) * prev)
 
 
+def _ewma_rate(prev: float, new: float, alpha: float) -> float:
+    return (alpha * new) + ((1 - alpha) * prev)
+
+
 def _disable_temporarily(w: WorkerState, seconds: float) -> None:
     w.disabled_until = time.time() + seconds
 
@@ -116,18 +123,28 @@ def _disable_temporarily(w: WorkerState, seconds: float) -> None:
 def _record_success(w: WorkerState, latency_ms: float) -> None:
     w.ok += 1
     w.avg_latency_ms = _ewma(w.avg_latency_ms, latency_ms, LAT_EWMA_ALPHA)
+    w.recent_latency_ms = _ewma(w.recent_latency_ms, latency_ms, AUTO_WEIGHT_ALPHA)
+    w.recent_fail_rate = _ewma_rate(w.recent_fail_rate, 0.0, AUTO_WEIGHT_ALPHA)
     w.last_error = None
 
 
-def _record_failure(w: WorkerState, err: str) -> None:
+def _record_failure(
+    w: WorkerState, err: str, latency_ms: float | None = None
+) -> None:
     w.fail += 1
     w.last_error = err
+    w.recent_fail_rate = _ewma_rate(w.recent_fail_rate, 1.0, AUTO_WEIGHT_ALPHA)
+
+    if latency_ms is None:
+        base_lat = float(w.reported_base_lat_ms or 0)
+        latency_ms = max(REQUEST_TIMEOUT_SEC * 1000.0, w.avg_latency_ms, base_lat, 50.0)
+    w.recent_latency_ms = _ewma(w.recent_latency_ms, latency_ms, AUTO_WEIGHT_ALPHA)
 
 
 async def _refresh_health_once(rt: Runtime) -> None:
     async def _probe(w: WorkerState):
         try:
-            data = await fetch_health(rt.http, w)
+            data = await fetch_health(rt.health_http, w)
             return w, data, None
         except Exception as e:
             return w, None, e
@@ -178,10 +195,11 @@ def _compute_auto_weights(rt: Runtime) -> None:
         if not w.online:
             continue
 
-        total = max(1, w.ok + w.fail)
-        fail_rate = w.fail / total
+        fail_rate = max(0.0, min(1.0, w.recent_fail_rate))
 
-        lat = w.avg_latency_ms
+        lat = w.recent_latency_ms
+        if lat <= 0:
+            lat = w.avg_latency_ms
         if lat <= 0 and w.reported_base_lat_ms is not None:
             lat = float(w.reported_base_lat_ms)
         if lat <= 0:
@@ -282,6 +300,12 @@ async def lifespan(app: FastAPI):
         raise RuntimeError("LB_WEIGHT_MODE must be 'manual' or 'auto'")
 
     http = httpx.AsyncClient(timeout=5.0)
+    health_pool = max(5, len(urls))
+    health_limits = httpx.Limits(
+        max_connections=health_pool,
+        max_keepalive_connections=health_pool,
+    )
+    health_http = httpx.AsyncClient(timeout=HEALTH_TIMEOUT_SEC, limits=health_limits)
 
     workers: list[WorkerState] = []
     for u in urls:
@@ -294,6 +318,7 @@ async def lifespan(app: FastAPI):
         workers=workers,
         balancer=SmoothWRR(workers),
         http=http,
+        health_http=health_http,
         weight_mode=LB_WEIGHT_MODE,
     )
 
@@ -315,6 +340,7 @@ async def lifespan(app: FastAPI):
                 with suppress(asyncio.CancelledError):
                     await task
         await rt.http.aclose()
+        await rt.health_http.aclose()
 
 
 app = FastAPI(title="Load Balancer", version="0.3.0", lifespan=lifespan)
@@ -360,6 +386,7 @@ async def handle_request(req: LBRequest):
         if w is None:
             raise HTTPException(status_code=503, detail="No eligible workers")
 
+        t0 = time.monotonic()
         try:
             status, body, ms = await forward_handle(
                 rt.http, w, payload=req.payload, timeout_sec=REQUEST_TIMEOUT_SEC
@@ -375,7 +402,7 @@ async def handle_request(req: LBRequest):
                     worker_body=body,
                 )
 
-            _record_failure(w, f"http {status}")
+            _record_failure(w, f"http {status}", ms)
             last_err = w.last_error
 
             if status >= 500:
@@ -391,7 +418,8 @@ async def handle_request(req: LBRequest):
             )
 
         except Exception as e:
-            _record_failure(w, f"forward: {e}")
+            ms = (time.monotonic() - t0) * 1000.0
+            _record_failure(w, f"forward: {e}", ms)
             last_err = w.last_error
             _disable_temporarily(w, DISABLE_ON_FAIL_SEC)
             continue

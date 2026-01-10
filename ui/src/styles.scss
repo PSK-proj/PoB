@@ -24,3 +24,19 @@ body {
 mat-sidenav-container {
     background: #f5f6f8;
 }
+
+.status-chip.mat-mdc-standard-chip {
+    --mdc-chip-outline-width: 1px;
+}
+
+.status-chip.status-chip--online.mat-mdc-standard-chip {
+    --mdc-chip-elevated-container-color: #e7f6ed;
+    --mdc-chip-label-text-color: #13653f;
+    --mdc-chip-outline-color: #9ad4b0;
+}
+
+.status-chip.status-chip--offline.mat-mdc-standard-chip {
+    --mdc-chip-elevated-container-color: #fdecee;
+    --mdc-chip-label-text-color: #8a1c1c;
+    --mdc-chip-outline-color: #f3b8b5;
+}

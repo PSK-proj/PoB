@@ -65,6 +65,8 @@ async def reset_experiment(request: Request):
                 w.ok = 0
                 w.fail = 0
                 w.avg_latency_ms = 0.0
+                w.recent_latency_ms = 0.0
+                w.recent_fail_rate = 0.0
                 w.current_weight = 0
                 w.disabled_until = 0.0
                 if w.online:

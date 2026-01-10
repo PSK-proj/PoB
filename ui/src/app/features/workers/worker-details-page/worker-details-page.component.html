@@ -9,7 +9,10 @@
 
             <mat-card-subtitle *ngIf="findWorker(workers, id) as w; else missing">
                 <mat-chip-set>
-                    <mat-chip [color]="w.online ? 'primary' : 'warn'">{{ w.online ? 'online' : 'offline' }}</mat-chip>
+                    <mat-chip class="status-chip" [class.status-chip--online]="w.online"
+                        [class.status-chip--offline]="!w.online">
+                        {{ w.online ? 'online' : 'offline' }}
+                    </mat-chip>
                 </mat-chip-set>
                 <span class="meta">
                     eff_w: <b>{{ w.effective_weight }}</b>

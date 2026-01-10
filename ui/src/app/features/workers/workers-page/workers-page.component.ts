@@ -14,7 +14,6 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatChipsModule } from '@angular/material/chips';
-import type { ThemePalette } from '@angular/material/core';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -202,10 +201,6 @@ export class WorkersPageComponent {
 
   isSelected(id: string): boolean {
     return this.selectedSubject.value.has(id);
-  }
-
-  chipColorForWorker(worker: WorkerView): ThemePalette | null {
-    return worker.online ? 'primary' : 'warn';
   }
 
   modeTooltip(mode: WeightMode): string {

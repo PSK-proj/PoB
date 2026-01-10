@@ -78,7 +78,7 @@
         <mat-card-title>Status</mat-card-title>
 
         <mat-chip-set>
-            <mat-chip [color]="vm.status.running ? 'primary' : null">
+            <mat-chip [color]="vm.status.running ? 'primary' : null" [highlighted]="vm.status.running">
                 {{ vm.status.running ? 'running' : 'stopped' }}
             </mat-chip>
             <mat-chip *ngIf="vm.status.last_error">

@@ -23,6 +23,8 @@ class WorkerState:
     ok: int = 0
     fail: int = 0
     avg_latency_ms: float = 0.0
+    recent_latency_ms: float = 0.0
+    recent_fail_rate: float = 0.0
     last_error: Optional[str] = None
     last_seen: float = 0.0
     reported_base_lat_ms: Optional[int] = None
