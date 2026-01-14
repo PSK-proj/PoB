@@ -1,1 +1,42 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+    --app-page-pad: clamp(16px, 2.5vw, 28px);
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: Roboto, "Helvetica Neue", sans-serif;
+    line-height: 1.5;
+    color: #1f2933;
+    background: #f5f6f8;
+}
+
+mat-sidenav-container {
+    background: #f5f6f8;
+}
+
+.status-chip.mat-mdc-standard-chip {
+    --mdc-chip-outline-width: 1px;
+}
+
+.status-chip.status-chip--online.mat-mdc-standard-chip {
+    --mdc-chip-elevated-container-color: #e7f6ed;
+    --mdc-chip-label-text-color: #13653f;
+    --mdc-chip-outline-color: #9ad4b0;
+}
+
+.status-chip.status-chip--offline.mat-mdc-standard-chip {
+    --mdc-chip-elevated-container-color: #fdecee;
+    --mdc-chip-label-text-color: #8a1c1c;
+    --mdc-chip-outline-color: #f3b8b5;
+}

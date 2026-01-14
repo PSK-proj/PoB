@@ -1,0 +1,55 @@
+.inner {
+    margin-top: 12px;
+    padding: 10px;
+}
+
+.top-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.form {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(220px, 1fr));
+    gap: 12px;
+    align-items: start;
+}
+
+.wide {
+    grid-column: span 2;
+}
+
+.add-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.table-wrap {
+    margin-top: 12px;
+    overflow: auto;
+}
+
+table {
+    width: 100%;
+    min-width: 900px;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+@media (max-width: 900px) {
+    .form {
+        grid-template-columns: 1fr;
+    }
+
+    .wide {
+        grid-column: span 1;
+    }
+}

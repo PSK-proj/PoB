@@ -1,0 +1,30 @@
+.container {
+    height: 100vh;
+}
+
+.sidenav {
+    width: 240px;
+}
+
+.content {
+    padding: var(--app-page-pad, 20px);
+}
+
+a.active {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.nav-link {
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-link mat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    font-size: 20px;
+    line-height: 20px;
+}

@@ -1,0 +1,69 @@
+<h2 mat-dialog-title>Reset experiment</h2>
+
+<div mat-dialog-content class="content">
+    <p class="hint">
+        This will:
+        <b>stop + reset ClientGen</b>, <b>reset metrics on all workers</b>, and <b>reset LB runtime stats</b>.
+    </p>
+
+    <div class="row" *ngIf="busy$ | async">
+        <mat-spinner diameter="22"></mat-spinner>
+        <span>Running reset...</span>
+    </div>
+
+    <div class="error" *ngIf="error$ | async as err">
+        {{ err }}
+    </div>
+
+    <ng-container *ngIf="response$ | async as resp">
+        <mat-divider class="mt"></mat-divider>
+
+        <div class="summary" [class.ok]="resp.ok" [class.bad]="!resp.ok">
+            <b>{{ resp.ok ? 'OK' : 'PARTIAL' }}</b>
+            <span>•</span>
+            <span>{{ resp.results.length }} steps</span>
+        </div>
+
+        <ng-container *ngIf="failures$ | async as failures">
+            <div class="mt" *ngIf="failures.length > 0; else allOk">
+                <div class="sub">Failures ({{ failures.length }})</div>
+
+                <table mat-table [dataSource]="failures" class="mat-elevation-z1">
+                    <ng-container matColumnDef="target">
+                        <th mat-header-cell *matHeaderCellDef>target</th>
+                        <td mat-cell *matCellDef="let r">{{ r.target }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="id">
+                        <th mat-header-cell *matHeaderCellDef>id</th>
+                        <td mat-cell *matCellDef="let r">{{ r.id ?? '—' }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="ok">
+                        <th mat-header-cell *matHeaderCellDef>ok</th>
+                        <td mat-cell *matCellDef="let r">{{ r.ok }}</td>
+                    </ng-container>
+
+                    <ng-container matColumnDef="detail">
+                        <th mat-header-cell *matHeaderCellDef>detail</th>
+                        <td mat-cell *matCellDef="let r" class="mono">{{ r.detail ?? '—' }}</td>
+                    </ng-container>
+
+                    <tr mat-header-row *matHeaderRowDef="cols"></tr>
+                    <tr mat-row *matRowDef="let row; columns: cols; trackBy: trackByKey"></tr>
+                </table>
+            </div>
+
+            <ng-template #allOk>
+                <div class="mt sub">All steps succeeded.</div>
+            </ng-template>
+        </ng-container>
+    </ng-container>
+</div>
+
+<div mat-dialog-actions class="actions">
+    <button mat-stroked-button type="button" (click)="close()" [disabled]="busy$ | async">Close</button>
+    <button mat-flat-button color="warn" type="button" (click)="runReset()" [disabled]="busy$ | async">
+        Reset now
+    </button>
+</div>

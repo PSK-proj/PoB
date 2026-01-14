@@ -1,0 +1,106 @@
+<mat-card>
+    <mat-card-title>Realtime state</mat-card-title>
+    <mat-card-subtitle>
+        <ng-container *ngIf="conn$ | async as c">
+            <mat-chip-set>
+                <mat-chip color="primary" highlighted>
+                    {{
+                    c.kind === 'connected'
+                    ? 'WS connected'
+                    : (c.kind === 'connecting'
+                    ? 'WS connecting'
+                    : 'WS disconnected → polling')
+                    }}
+                </mat-chip>
+
+                <mat-chip *ngIf="c.kind === 'disconnected'">
+                    reason: {{ c.reason }}
+                </mat-chip>
+            </mat-chip-set>
+        </ng-container>
+    </mat-card-subtitle>
+</mat-card>
+
+<div class="lb-actions">
+    <button mat-flat-button color="warn" type="button" (click)="openResetExperiment()">
+        Reset experiment
+    </button>
+</div>
+
+
+<mat-card class="mt" *ngIf="state$ | async as s">
+    <mat-card-title>LB</mat-card-title>
+    <mat-card-subtitle>
+        mode: <b>{{ s.weight_mode }}</b>
+        • assigned: <b>{{ s.total_assigned }}</b>
+        • ok: <b>{{ s.total_ok }}</b>
+        • fail: <b>{{ s.total_fail }}</b>
+    </mat-card-subtitle>
+
+    <div class="table-wrap">
+        <table mat-table [dataSource]="s.workers" class="mat-elevation-z1">
+            <ng-container matColumnDef="id">
+                <th mat-header-cell *matHeaderCellDef>Worker</th>
+                <td mat-cell *matCellDef="let w">
+                    <a [routerLink]="['/workers', w.id]">{{ w.id }}</a>
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="online">
+                <th mat-header-cell *matHeaderCellDef>Status</th>
+                <td mat-cell *matCellDef="let w">
+                    <mat-chip-set>
+                        <mat-chip class="status-chip" [class.status-chip--online]="w.online"
+                            [class.status-chip--offline]="!w.online">
+                            {{ w.online ? 'online' : 'offline' }}
+                        </mat-chip>
+                    </mat-chip-set>
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="effWeight">
+                <th mat-header-cell *matHeaderCellDef>eff_w</th>
+                <td mat-cell *matCellDef="let w">{{ w.effective_weight }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="assignedPct">
+                <th mat-header-cell *matHeaderCellDef>assigned %</th>
+                <td mat-cell *matCellDef="let w">
+                    {{ w.assigned_pct | number:'1.0-2' }}%
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="okFail">
+                <th mat-header-cell *matHeaderCellDef>ok/fail</th>
+                <td mat-cell *matCellDef="let w">{{ w.ok }} / {{ w.fail }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="lat">
+                <th mat-header-cell *matHeaderCellDef>avg ms</th>
+                <td mat-cell *matCellDef="let w">
+                    {{ w.avg_latency_ms | number:'1.0-2' }}
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="lastSeen">
+                <th mat-header-cell *matHeaderCellDef>last seen</th>
+                <td mat-cell *matCellDef="let w">
+                    <ng-container *ngIf="w.last_seen; else na">
+                        {{ (w.last_seen * 1000) | date:'HH:mm:ss' }}
+                    </ng-container>
+                    <ng-template #na>—</ng-template>
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="err">
+                <th mat-header-cell *matHeaderCellDef>last error</th>
+                <td mat-cell *matCellDef="let w">{{ w.last_error ?? '—' }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="cols"></tr>
+            <tr mat-row *matRowDef="let row; columns: cols;"></tr>
+        </table>
+    </div>
+</mat-card>
+
+<app-dashboard-charts-panel></app-dashboard-charts-panel>

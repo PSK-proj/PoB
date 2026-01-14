@@ -1,0 +1,23 @@
+:host {
+    display: block;
+}
+
+.card {
+    margin: 16px 0;
+    padding: 12px;
+}
+
+.title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sep {
+    opacity: 0.6;
+}
+
+.meta {
+    margin-left: 10px;
+    opacity: 0.85;
+}

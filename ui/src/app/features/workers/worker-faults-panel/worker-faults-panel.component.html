@@ -1,0 +1,134 @@
+<mat-card class="inner">
+    <mat-card-title>Fault injection</mat-card-title>
+
+    <mat-progress-bar *ngIf="busy$ | async" mode="indeterminate"></mat-progress-bar>
+
+    <div class="top-actions">
+        <button mat-stroked-button type="button" (click)="refresh()">Refresh</button>
+        <button mat-stroked-button color="warn" type="button" (click)="clearAll()">Clear all</button>
+    </div>
+
+    <form class="form" [formGroup]="form">
+        <mat-form-field appearance="outline">
+            <mat-label>kind</mat-label>
+            <mat-select formControlName="kind">
+                <mat-option value="delay">delay</mat-option>
+                <mat-option value="drop">drop</mat-option>
+                <mat-option value="corrupt">corrupt</mat-option>
+                <mat-option value="error">error</mat-option>
+                <mat-option value="cpu_burn">cpu_burn</mat-option>
+            </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+            <mat-label>probability</mat-label>
+            <input matInput type="number" step="0.01" min="0" max="1" formControlName="probability" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+            <mat-label>duration_sec (optional)</mat-label>
+            <input matInput type="number" step="0.1" min="0.1" formControlName="duration_sec" />
+        </mat-form-field>
+
+        <ng-container *ngIf="isKind(form.controls.kind.value, 'delay')">
+            <mat-form-field appearance="outline">
+                <mat-label>delay_ms</mat-label>
+                <input matInput type="number" min="0" max="60000" formControlName="delay_ms" />
+            </mat-form-field>
+        </ng-container>
+
+        <ng-container *ngIf="isKind(form.controls.kind.value, 'drop')">
+            <mat-form-field appearance="outline">
+                <mat-label>mode</mat-label>
+                <mat-select formControlName="mode">
+                    <mat-option value="503">503</mat-option>
+                    <mat-option value="timeout">timeout</mat-option>
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>status_code</mat-label>
+                <input matInput type="number" min="400" max="599" formControlName="status_code" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>sleep_ms</mat-label>
+                <input matInput type="number" min="1" max="600000" formControlName="sleep_ms" />
+            </mat-form-field>
+        </ng-container>
+
+        <ng-container *ngIf="isKind(form.controls.kind.value, 'corrupt')">
+            <mat-form-field appearance="outline">
+                <mat-label>mode</mat-label>
+                <mat-select formControlName="corrupt_mode">
+                    <mat-option value="invalid_json">invalid_json</mat-option>
+                    <mat-option value="bad_fields">bad_fields</mat-option>
+                </mat-select>
+            </mat-form-field>
+        </ng-container>
+
+        <ng-container *ngIf="isKind(form.controls.kind.value, 'error')">
+            <mat-form-field appearance="outline">
+                <mat-label>status_code</mat-label>
+                <input matInput type="number" min="400" max="599" formControlName="error_status_code" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="wide">
+                <mat-label>message</mat-label>
+                <input matInput type="text" formControlName="message" />
+            </mat-form-field>
+        </ng-container>
+
+        <ng-container *ngIf="isKind(form.controls.kind.value, 'cpu_burn')">
+            <mat-form-field appearance="outline">
+                <mat-label>burn_ms</mat-label>
+                <input matInput type="number" min="1" max="60000" formControlName="burn_ms" />
+            </mat-form-field>
+        </ng-container>
+    </form>
+
+    <div class="add-actions">
+        <button mat-flat-button color="primary" type="button" (click)="add()">Add fault</button>
+    </div>
+
+    <div class="table-wrap">
+        <table mat-table [dataSource]="(faults$ | async) ?? []" class="mat-elevation-z1">
+            <ng-container matColumnDef="id">
+                <th mat-header-cell *matHeaderCellDef>id</th>
+                <td mat-cell *matCellDef="let f">{{ f.id }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="kind">
+                <th mat-header-cell *matHeaderCellDef>kind</th>
+                <td mat-cell *matCellDef="let f">{{ f.kind }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="created">
+                <th mat-header-cell *matHeaderCellDef>created</th>
+                <td mat-cell *matCellDef="let f">{{ (f.created_at * 1000) | date:'HH:mm:ss' }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="expires">
+                <th mat-header-cell *matHeaderCellDef>expires</th>
+                <td mat-cell *matCellDef="let f">
+                    {{ f.expires_at ? ((f.expires_at * 1000) | date:'HH:mm:ss') : '—' }}
+                </td>
+            </ng-container>
+
+            <ng-container matColumnDef="spec">
+                <th mat-header-cell *matHeaderCellDef>spec</th>
+                <td mat-cell *matCellDef="let f" class="mono">{{ specText(f.spec) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>actions</th>
+                <td mat-cell *matCellDef="let f">
+                    <button mat-button color="warn" type="button" (click)="delete(f.id)">Delete</button>
+                </td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="cols"></tr>
+            <tr mat-row *matRowDef="let row; columns: cols"></tr>
+        </table>
+    </div>
+</mat-card>

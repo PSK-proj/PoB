@@ -1,0 +1,115 @@
+<div class="page" *ngIf="vm$ | async as vm">
+    <mat-card class="card">
+        <mat-card-title>Traffic control</mat-card-title>
+        <mat-card-subtitle>ClientGen proxied via LB</mat-card-subtitle>
+
+        <mat-progress-bar *ngIf="vm.busy" mode="indeterminate"></mat-progress-bar>
+
+        <form class="grid" [formGroup]="form">
+            <mat-form-field appearance="outline">
+                <mat-label>RPS</mat-label>
+                <input matInput type="number" formControlName="rps" step="0.1" min="0.1" max="5000" />
+                <mat-hint>0.1 .. 5000</mat-hint>
+                <mat-error *ngIf="form.controls.rps.hasError('required')">Required</mat-error>
+                <mat-error *ngIf="form.controls.rps.hasError('min')">Min 0.1</mat-error>
+                <mat-error *ngIf="form.controls.rps.hasError('max')">Max 5000</mat-error>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>Duration (sec)</mat-label>
+                <input matInput type="number" formControlName="duration_sec" step="0.1" min="0.1" />
+                <mat-hint>Leave empty for no limit</mat-hint>
+                <mat-error *ngIf="form.controls.duration_sec.hasError('min')">Min 0.1</mat-error>
+            </mat-form-field>
+
+            <div class="actions">
+                <button mat-raised-button color="primary" [disabled]="!vm.canStart" type="button"
+                    (click)="start(vm.status)">
+                    <mat-icon>play_arrow</mat-icon>
+                    Start
+                </button>
+
+                <button mat-raised-button color="warn" [disabled]="!vm.canStop" type="button" (click)="stop(vm.status)">
+                    <mat-icon>stop</mat-icon>
+                    Stop
+                </button>
+
+                <button mat-stroked-button type="button" (click)="refresh()">
+                    <mat-icon>refresh</mat-icon>
+                    Refresh
+                </button>
+            </div>
+
+            <mat-expansion-panel class="advanced" [disabled]="vm.inputsDisabled">
+                <mat-expansion-panel-header>
+                    <mat-panel-title>Advanced</mat-panel-title>
+                    <mat-panel-description>endpoint / profile / concurrency</mat-panel-description>
+                </mat-expansion-panel-header>
+
+                <div class="grid-advanced">
+                    <mat-form-field appearance="outline">
+                        <mat-label>Concurrency</mat-label>
+                        <input matInput type="number" formControlName="concurrency" step="1" min="1" max="1000" />
+                        <mat-hint>Parallel in-flight requests (1 .. 1000)</mat-hint>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('required')">Required</mat-error>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('min')">Min 1</mat-error>
+                        <mat-error *ngIf="form.controls.concurrency.hasError('max')">Max 1000</mat-error>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                        <mat-label>Endpoint</mat-label>
+                        <input matInput formControlName="endpoint" />
+                        <mat-hint>Default: /request</mat-hint>
+                        <mat-error *ngIf="form.controls.endpoint.hasError('required')">Required</mat-error>
+                        <mat-error *ngIf="form.controls.endpoint.hasError('pattern')">Must start with "/"</mat-error>
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                        <mat-label>Profile</mat-label>
+                        <input matInput formControlName="profile" readonly />
+                        <mat-hint>Backend currently uses constant</mat-hint>
+                    </mat-form-field>
+                </div>
+            </mat-expansion-panel>
+        </form>
+    </mat-card>
+
+    <mat-card class="card">
+        <mat-card-title>Status</mat-card-title>
+
+        <mat-chip-set>
+            <mat-chip [color]="vm.status.running ? 'primary' : null" [highlighted]="vm.status.running">
+                {{ vm.status.running ? 'running' : 'stopped' }}
+            </mat-chip>
+            <mat-chip *ngIf="vm.status.last_error">
+                last_error: {{ vm.status.last_error }}
+            </mat-chip>
+        </mat-chip-set>
+
+        <div class="stats">
+            <div class="row"><span class="k">RPS</span><span class="v">{{ vm.status.rps ?? '—' }}</span></div>
+            <div class="row"><span class="k">Concurrency</span><span class="v">{{ vm.status.concurrency ?? '—' }}</span>
+            </div>
+            <div class="row"><span class="k">Duration</span><span class="v">{{ vm.status.duration_sec ?? '—' }}</span>
+            </div>
+            <div class="row"><span class="k">Endpoint</span><span class="v">{{ vm.status.endpoint ?? '—' }}</span></div>
+            <div class="row"><span class="k">Profile</span><span class="v">{{ vm.status.profile ?? '—' }}</span></div>
+
+            <div class="row">
+                <span class="k">Started</span>
+                <span class="v">
+                    <ng-container *ngIf="vm.status.started_at; else na">
+                        {{ (vm.status.started_at * 1000) | date:'yyyy-MM-dd HH:mm:ss' }}
+                    </ng-container>
+                    <ng-template #na>—</ng-template>
+                </span>
+            </div>
+        </div>
+
+        <div class="counters">
+            <div class="row"><span class="k">total_sent</span><span class="v">{{ vm.status.total_sent }}</span></div>
+            <div class="row"><span class="k">total_ok</span><span class="v">{{ vm.status.total_ok }}</span></div>
+            <div class="row"><span class="k">total_fail</span><span class="v">{{ vm.status.total_fail }}</span></div>
+        </div>
+    </mat-card>
+</div>

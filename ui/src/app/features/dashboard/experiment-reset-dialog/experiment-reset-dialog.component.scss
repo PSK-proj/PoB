@@ -1,0 +1,64 @@
+.content {
+    min-width: min(900px, 92vw);
+}
+
+.hint {
+    margin: 0 0 10px 0;
+    opacity: 0.9;
+}
+
+.row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.mt {
+    margin-top: 12px;
+}
+
+.error {
+    margin-top: 10px;
+    padding: 10px;
+    border-radius: 10px;
+    background: rgba(244, 67, 54, 0.08);
+}
+
+.summary {
+    margin-top: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    border-radius: 10px;
+}
+
+.summary.ok {
+    background: rgba(76, 175, 80, 0.10);
+}
+
+.summary.bad {
+    background: rgba(255, 152, 0, 0.12);
+}
+
+.sub {
+    opacity: 0.9;
+    margin-bottom: 8px;
+}
+
+table {
+    width: 100%;
+}
+
+.mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}

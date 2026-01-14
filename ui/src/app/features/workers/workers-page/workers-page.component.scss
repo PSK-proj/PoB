@@ -1,0 +1,91 @@
+:host {
+    display: block;
+}
+
+.page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 12px 12px 28px;
+}
+
+.card {
+    margin: 16px 0;
+    padding: 12px;
+}
+
+.toolbar {
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: 1fr 220px;
+    gap: 16px;
+    align-items: start;
+}
+
+.bulk {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.mode-switch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.table-wrap {
+    overflow: auto;
+    margin-top: 8px;
+}
+
+table {
+    min-width: 1300px;
+    width: 100%;
+}
+
+.manual-weight {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 6px 0;
+}
+
+.mw-field {
+    width: 140px;
+}
+
+.muted {
+    opacity: 0.75;
+}
+
+.small {
+    font-size: 12px;
+}
+
+:host ::ng-deep .mat-mdc-header-cell,
+:host ::ng-deep .mat-mdc-cell {
+    padding-top: 12px;
+    padding-bottom: 12px;
+}
+
+:host ::ng-deep .mat-mdc-row {
+    height: auto;
+}
+
+:host ::ng-deep .mw-field .mat-mdc-form-field-subscript-wrapper {
+    display: none;
+}
+
+@media (max-width: 900px) {
+    .toolbar {
+        grid-template-columns: 1fr;
+    }
+
+    .bulk {
+        justify-content: flex-start;
+    }
+}

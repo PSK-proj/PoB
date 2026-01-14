@@ -1,0 +1,32 @@
+<mat-card class="inner">
+    <mat-card-title>Config</mat-card-title>
+
+    <mat-progress-bar *ngIf="busy$ | async" mode="indeterminate"></mat-progress-bar>
+
+    <form class="grid" [formGroup]="form">
+        <mat-form-field appearance="outline">
+            <mat-label>base_lat_ms</mat-label>
+            <input matInput type="number" formControlName="base_lat_ms" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+            <mat-label>jitter_ms</mat-label>
+            <input matInput type="number" formControlName="jitter_ms" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+            <mat-label>capacity</mat-label>
+            <input matInput type="number" formControlName="capacity" />
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+            <mat-label>weight</mat-label>
+            <input matInput type="number" formControlName="weight" />
+        </mat-form-field>
+    </form>
+
+    <div class="actions">
+        <button mat-stroked-button type="button" (click)="reload()">Reload</button>
+        <button mat-flat-button color="primary" type="button" (click)="save()">Save</button>
+    </div>
+</mat-card>
